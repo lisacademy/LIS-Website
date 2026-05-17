@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://lisacademy-apii.onrender.com/api/:path*"
+      "destination": "https://lisacademy-api.onrender.com/api/:path*"
     },
     {
       "source": "/(.*)",

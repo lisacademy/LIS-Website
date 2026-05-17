@@ -15,6 +15,8 @@ const app = express();
 const port = Number(process.env.PORT || 8787);
 const adminUsername = String(process.env.ADMIN_USERNAME || "").trim();
 const adminPassword = String(process.env.ADMIN_PASSWORD || "");
+let databaseReady = false;
+let databaseStartupError = null;
 
 if (!adminUsername) {
   throw new Error("ADMIN_USERNAME is not set. Configure a dedicated production admin username in the server environment.");
@@ -267,7 +269,11 @@ function generateApplicationId(membershipNumber) {
 }
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true });
+  res.json({
+    ok: true,
+    databaseReady,
+    databaseError: databaseStartupError?.message || undefined,
+  });
 });
 
 app.get("/api/events", async (_req, res) => {
@@ -1016,25 +1022,31 @@ app.get(/^(?!\/api(?:\/|$)).*/, (_req, res) => {
   res.sendFile(path.join(distDir, "index.html"));
 });
 
-ensureMemberDocumentColumns()
-  .then(ensureEventLinkColumns)
-  .then(() => {
-    app.listen(port, () => {
-      console.log(`LIS Academy app listening on http://localhost:${port}`);
-      console.log(`Life certificate template version: ${LIFE_CERTIFICATE_TEMPLATE_VERSION}`);
-      
-      // Keep-alive ping to prevent Neon DB from cold-starting (suspending)
-      setInterval(async () => {
-        try {
-          await sql`SELECT 1`;
-          console.log("[db] Keep-alive ping successful.");
-        } catch (err) {
-          console.error("[db] Keep-alive ping failed:", err.message);
-        }
-      }, 4 * 60 * 1000); // every 4 minutes
-    });
-  })
-  .catch((error) => {
-    console.error("Failed to prepare member document columns.", error);
-    process.exit(1);
-  });
+async function prepareDatabase() {
+  try {
+    await ensureMemberDocumentColumns();
+    await ensureEventLinkColumns();
+    databaseReady = true;
+    databaseStartupError = null;
+    console.log("[db] Database preparation completed.");
+  } catch (error) {
+    databaseReady = false;
+    databaseStartupError = error;
+    console.error("Failed to prepare database.", error);
+  }
+}
+
+app.listen(port, () => {
+  console.log(`LIS Academy app listening on http://localhost:${port}`);
+  console.log(`Life certificate template version: ${LIFE_CERTIFICATE_TEMPLATE_VERSION}`);
+  prepareDatabase();
+
+  setInterval(async () => {
+    try {
+      await sql`SELECT 1`;
+      console.log("[db] Keep-alive ping successful.");
+    } catch (err) {
+      console.error("[db] Keep-alive ping failed:", err.message);
+    }
+  }, 4 * 60 * 1000);
+});
