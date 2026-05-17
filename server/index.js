@@ -1,11 +1,16 @@
 import dotenv from "dotenv";
 import express from "express";
 import bcrypt from "bcryptjs";
+import path from "path";
+import { fileURLToPath } from "url";
 import { sql } from "./db.js";
 import { requireAuth, requireAdmin, signToken } from "./auth.js";
 
 dotenv.config();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const distDir = path.resolve(__dirname, "../dist");
 const app = express();
 const port = Number(process.env.PORT || 8787);
 const adminUsername = String(process.env.ADMIN_USERNAME || "").trim();
@@ -1006,11 +1011,16 @@ app.delete("/api/admin/members/:id", requireAdmin, async (req, res) => {
   }
 });
 
+app.use(express.static(distDir));
+app.get(/^(?!\/api(?:\/|$)).*/, (_req, res) => {
+  res.sendFile(path.join(distDir, "index.html"));
+});
+
 ensureMemberDocumentColumns()
   .then(ensureEventLinkColumns)
   .then(() => {
     app.listen(port, () => {
-      console.log(`LIS Academy API listening on http://localhost:${port}`);
+      console.log(`LIS Academy app listening on http://localhost:${port}`);
       console.log(`Life certificate template version: ${LIFE_CERTIFICATE_TEMPLATE_VERSION}`);
       
       // Keep-alive ping to prevent Neon DB from cold-starting (suspending)

@@ -5,9 +5,12 @@ import { fetchDocumentTemplates, type DocumentTemplate } from './documentTemplat
 import { buildApiUrl } from './api';
 
 export const LIFE_CERTIFICATE_TEMPLATE_VERSION = 9;
-export const VOLUNTEER_CERTIFICATE_TEMPLATE_VERSION = LIFE_CERTIFICATE_TEMPLATE_VERSION;
+export const VOLUNTEER_CERTIFICATE_TEMPLATE_VERSION = 10;
 const LIFE_CERTIFICATE_DRAFT_TEMPLATE_URL = '/membership/No_sign-01.png';
 const LIFE_CERTIFICATE_TEMPLATE_URL = '/membership/withsign-01.png';
+const VOLUNTEER_CERTIFICATE_DRAFT_TEMPLATE_URL = '/membership/No_sign_volunteer-01.png';
+const VOLUNTEER_CERTIFICATE_TEMPLATE_URL = '/membership/withsign_volunteer-01.png';
+const ID_CARD_FRONT_TEMPLATE_URL = '/membership/ID card template-02.png';
 
 const CANVA_CERTIFICATE_WIDTH = 1876;
 const CANVA_CERTIFICATE_HEIGHT = 1438;
@@ -583,11 +586,23 @@ export async function generateVolunteerCertificate(
   member: Member,
   options?: { editorState?: Partial<LifeCertificateEditorState> | null },
 ): Promise<string> {
-  const settings = await getLifeCertificateSettings();
   return generateConfiguredLifeCertificate(
     member,
-    settings.finalTemplateUrl,
+    VOLUNTEER_CERTIFICATE_TEMPLATE_URL,
     true,
+    options?.editorState,
+    'volunteer',
+  );
+}
+
+export async function generateVolunteerCertificateDraft(
+  member: Member,
+  options?: { editorState?: Partial<LifeCertificateEditorState> | null },
+): Promise<string> {
+  return generateConfiguredLifeCertificate(
+    member,
+    VOLUNTEER_CERTIFICATE_DRAFT_TEMPLATE_URL,
+    false,
     options?.editorState,
     'volunteer',
   );
@@ -722,7 +737,16 @@ export async function generateIdCard(member: Member): Promise<{ front: string; b
     }
   }
 
-  const W = 638, H = 402;
+  let frontBackground: HTMLImageElement | null = null;
+  try {
+    frontBackground = await getTemplateImage(ID_CARD_FRONT_TEMPLATE_URL);
+  } catch {
+    frontBackground = null;
+  }
+
+  const W = frontBackground?.width || 638;
+  const H = frontBackground?.height || 402;
+  const usesFrontBackground = Boolean(frontBackground);
   const tierColor = TIER_COLORS[member.membership_tier] || '#c9a84c';
 
   // ── FRONT ───────────────────────────────────────────────────
@@ -731,28 +755,34 @@ export async function generateIdCard(member: Member): Promise<{ front: string; b
   front.height = H;
   const fc = front.getContext('2d')!;
 
-  // Background gradient
-  const bg = fc.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, '#0d1b3e');
-  bg.addColorStop(0.6, '#1a3060');
-  bg.addColorStop(1, '#112244');
-  fc.fillStyle = bg;
-  fc.fillRect(0, 0, W, H);
+  if (frontBackground) {
+    fc.drawImage(frontBackground, 0, 0, W, H);
+  } else {
+    const bg = fc.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, '#0d1b3e');
+    bg.addColorStop(0.6, '#1a3060');
+    bg.addColorStop(1, '#112244');
+    fc.fillStyle = bg;
+    fc.fillRect(0, 0, W, H);
 
-  // Decorative circle accent (top-right)
-  fc.strokeStyle = 'rgba(201,168,76,0.25)';
-  fc.lineWidth = 40;
-  fc.beginPath();
-  fc.arc(W + 30, -30, 200, 0, Math.PI * 2);
-  fc.stroke();
+    fc.strokeStyle = 'rgba(201,168,76,0.25)';
+    fc.lineWidth = 40;
+    fc.beginPath();
+    fc.arc(W + 30, -30, 200, 0, Math.PI * 2);
+    fc.stroke();
 
-  // Thin gold stripe at top
-  fc.fillStyle = '#c9a84c';
-  fc.fillRect(0, 0, W, 5);
+    fc.fillStyle = '#c9a84c';
+    fc.fillRect(0, 0, W, 5);
 
-  // Tier color stripe at bottom
-  fc.fillStyle = tierColor;
-  fc.fillRect(0, H - 5, W, 5);
+    fc.fillStyle = tierColor;
+    fc.fillRect(0, H - 5, W, 5);
+  }
+
+  const frontPrimaryColor = usesFrontBackground ? '#173756' : '#ffffff';
+  const frontSecondaryColor = usesFrontBackground ? '#32465c' : 'rgba(255,255,255,0.8)';
+  const frontLabelColor = usesFrontBackground ? '#b68b2d' : 'rgba(201,168,76,0.7)';
+  const frontBandFill = usesFrontBackground ? 'rgba(201,168,76,0.14)' : tierColor + '33';
+  const frontBandStroke = usesFrontBackground ? 'rgba(201,168,76,0.45)' : tierColor + '88';
 
   // ── Logo (left side) ────────────────────────────────────────
   try {
@@ -772,7 +802,7 @@ export async function generateIdCard(member: Member): Promise<{ front: string; b
   } catch { /* skip */ }
 
   // Academy name
-  fc.fillStyle = '#ffffff';
+  fc.fillStyle = frontPrimaryColor;
   fc.textAlign = 'left';
   fc.font = 'bold 22px "Inter", sans-serif';
   fc.fillText('LIS ACADEMY', 138, 68);
@@ -783,7 +813,7 @@ export async function generateIdCard(member: Member): Promise<{ front: string; b
   fc.letterSpacing = '0px';
 
   // Divider line
-  fc.strokeStyle = 'rgba(201,168,76,0.4)';
+  fc.strokeStyle = usesFrontBackground ? 'rgba(23,55,86,0.18)' : 'rgba(201,168,76,0.4)';
   fc.lineWidth = 1;
   fc.beginPath();
   fc.moveTo(30, 142);
@@ -792,10 +822,10 @@ export async function generateIdCard(member: Member): Promise<{ front: string; b
 
   // Member photo (right side placeholder)
   const photoX = W - 130, photoY = 155, photoSize = 110;
-  fc.fillStyle = 'rgba(255,255,255,0.08)';
+  fc.fillStyle = usesFrontBackground ? 'rgba(255,255,255,0.72)' : 'rgba(255,255,255,0.08)';
   roundRect(fc, photoX, photoY, photoSize, photoSize, 8);
   fc.fill();
-  fc.strokeStyle = 'rgba(201,168,76,0.5)';
+  fc.strokeStyle = usesFrontBackground ? 'rgba(23,55,86,0.25)' : 'rgba(201,168,76,0.5)';
   fc.lineWidth = 1.5;
   roundRect(fc, photoX, photoY, photoSize, photoSize, 8);
   fc.stroke();
@@ -810,7 +840,7 @@ export async function generateIdCard(member: Member): Promise<{ front: string; b
       fc.restore();
     } catch { /* skip */ }
   } else {
-    fc.fillStyle = 'rgba(255,255,255,0.3)';
+    fc.fillStyle = usesFrontBackground ? 'rgba(23,55,86,0.45)' : 'rgba(255,255,255,0.3)';
     fc.font = '11px "Inter", sans-serif';
     fc.textAlign = 'center';
     fc.fillText('PHOTO', photoX + photoSize / 2, photoY + photoSize / 2 + 4);
@@ -821,56 +851,56 @@ export async function generateIdCard(member: Member): Promise<{ front: string; b
   const infoX = 30;
   let infoY = 170;
 
-  fc.fillStyle = 'rgba(201,168,76,0.7)';
+  fc.fillStyle = frontLabelColor;
   fc.font = '9px "Inter", sans-serif';
   fc.letterSpacing = '2px';
   fc.fillText('MEMBER NAME', infoX, infoY);
   fc.letterSpacing = '0px';
   infoY += 18;
-  fc.fillStyle = '#ffffff';
+  fc.fillStyle = frontPrimaryColor;
   fc.font = 'bold 20px "Inter", sans-serif';
   fc.fillText(member.name, infoX, infoY);
   infoY += 24;
 
-  fc.fillStyle = 'rgba(201,168,76,0.7)';
+  fc.fillStyle = frontLabelColor;
   fc.font = '9px "Inter", sans-serif';
   fc.letterSpacing = '2px';
   fc.fillText('DESIGNATION', infoX, infoY);
   fc.letterSpacing = '0px';
   infoY += 16;
-  fc.fillStyle = 'rgba(255,255,255,0.8)';
+  fc.fillStyle = frontSecondaryColor;
   fc.font = '13px "Inter", sans-serif';
   const designation = member.designation || '—';
   fc.fillText(designation.length > 28 ? designation.slice(0, 28) + '…' : designation, infoX, infoY);
   infoY += 22;
 
-  fc.fillStyle = 'rgba(201,168,76,0.7)';
+  fc.fillStyle = frontLabelColor;
   fc.font = '9px "Inter", sans-serif';
   fc.letterSpacing = '2px';
   fc.fillText('INSTITUTION', infoX, infoY);
   fc.letterSpacing = '0px';
   infoY += 16;
-  fc.fillStyle = 'rgba(255,255,255,0.8)';
+  fc.fillStyle = frontSecondaryColor;
   fc.font = '12px "Inter", sans-serif';
   const inst = member.institution || '—';
   fc.fillText(inst.length > 34 ? inst.slice(0, 34) + '…' : inst, infoX, infoY);
 
   // Membership ID band
-  fc.fillStyle = tierColor + '33';
+  fc.fillStyle = frontBandFill;
   roundRect(fc, 30, 308, W - 60, 42, 6);
   fc.fill();
-  fc.strokeStyle = tierColor + '88';
+  fc.strokeStyle = frontBandStroke;
   fc.lineWidth = 1;
   roundRect(fc, 30, 308, W - 60, 42, 6);
   fc.stroke();
 
-  fc.fillStyle = 'rgba(255,255,255,0.5)';
+  fc.fillStyle = usesFrontBackground ? 'rgba(23,55,86,0.58)' : 'rgba(255,255,255,0.5)';
   fc.font = '9px "Inter", sans-serif';
   fc.textAlign = 'left';
   fc.letterSpacing = '2px';
   fc.fillText('MEMBERSHIP ID', 44, 324);
   fc.letterSpacing = '0px';
-  fc.fillStyle = '#ffffff';
+  fc.fillStyle = frontPrimaryColor;
   fc.font = 'bold 17px "Inter", sans-serif';
   fc.letterSpacing = '2px';
   fc.fillText(member.membership_id, 44, 342);
@@ -890,7 +920,7 @@ export async function generateIdCard(member: Member): Promise<{ front: string; b
   fc.letterSpacing = '0px';
 
   // Footer
-  fc.fillStyle = 'rgba(255,255,255,0.35)';
+  fc.fillStyle = usesFrontBackground ? 'rgba(23,55,86,0.55)' : 'rgba(255,255,255,0.35)';
   fc.font = '9px "Inter", sans-serif';
   fc.textAlign = 'center';
   fc.fillText('lisacademyorg@gmail.com  |  +91 9449679737', W / 2, H - 14);

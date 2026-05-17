@@ -10,6 +10,8 @@
     "api:dev": "node --watch server/index.js",
     "dev:full": "npm run dev",
     "build": "vite build",
+    "start": "node server/index.js",
+    "serve": "node server/index.js",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
