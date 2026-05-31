@@ -4,6 +4,31 @@ import PageLayout from "@/components/PageLayout";
 import PageHeader from "@/components/PageHeader";
 import { MapPin, Clock, Users, ExternalLink } from "lucide-react";
 import { fetchEvents, type EventItem } from "@/lib/eventsDb";
+import { getEventGalleryPath } from "@/lib/eventGalleries";
+
+type EventCategory = "all" | "lisacon" | "tech-vc" | "lectures" | "other";
+
+const EVENT_CATEGORIES: { id: EventCategory; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "lisacon", label: "LISACON Series" },
+  { id: "tech-vc", label: "Tech VC Conclaves" },
+  { id: "lectures", label: "Distinguished Lectures" },
+  { id: "other", label: "Other Events" },
+];
+
+function eventKey(event: EventItem) {
+  return event.id || event.title;
+}
+
+function getEventCategory(event: EventItem): Exclude<EventCategory, "all"> {
+  const title = event.title.toLowerCase();
+  const type = event.type.toLowerCase();
+
+  if (title.includes("tech vc") || type.includes("tech vc")) return "tech-vc";
+  if (title.includes("distinguished lecture") || type.includes("distinguished lecture") || type.includes("lecture series")) return "lectures";
+  if (title.includes("lisacon") || title.includes("lis academy conference") || type.includes("conference")) return "lisacon";
+  return "other";
+}
 
 function FadeIn({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
   const ref = useRef(null);
@@ -62,6 +87,7 @@ function CountdownBadge({ date }: { date: Date }) {
 export default function Events() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<EventCategory>("all");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -84,6 +110,18 @@ export default function Events() {
       .filter((item): item is { event: EventItem; date: Date } => Boolean(item.date) && item.date >= today)
       .sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [events]);
+
+  const filteredEvents = useMemo(() => {
+    if (activeCategory === "all") return events;
+    return events.filter((event) => getEventCategory(event) === activeCategory);
+  }, [activeCategory, events]);
+
+  useEffect(() => {
+    if (filteredEvents.length === 0) return;
+    if (!selectedEventId || !filteredEvents.some((event) => eventKey(event) === selectedEventId)) {
+      setSelectedEventId(eventKey(filteredEvents[0]));
+    }
+  }, [filteredEvents, selectedEventId]);
 
   return (
     <PageLayout>
@@ -144,8 +182,34 @@ export default function Events() {
         <div className="max-w-7xl mx-auto space-y-8">
           <FadeIn>
             <div>
-              <span className="text-sm font-semibold tracking-widest uppercase mb-3 block" style={{ color: "#c9a84c" }}>All Events</span>
+              <span className="text-sm font-semibold tracking-widest uppercase mb-3 block" style={{ color: "#c9a84c" }}>
+                {EVENT_CATEGORIES.find((category) => category.id === activeCategory)?.label || "All Events"}
+              </span>
               <h2 className="font-serif text-3xl md:text-4xl font-bold text-white">Conference History and Recurring Formats</h2>
+            </div>
+          </FadeIn>
+
+          <FadeIn delay={0.05}>
+            <div className="flex flex-wrap gap-3" role="tablist" aria-label="Event categories">
+              {EVENT_CATEGORIES.map((category) => {
+                const active = activeCategory === category.id;
+                return (
+                  <button
+                    key={category.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setActiveCategory(category.id)}
+                    className={`min-h-11 rounded-lg border px-4 text-sm font-semibold transition-all ${
+                      active
+                        ? "border-[#c9a84c] bg-[#c9a84c] text-[#0d1b3e]"
+                        : "border-white/15 bg-white/5 text-white/75 hover:border-[#c9a84c]/55 hover:text-white"
+                    }`}
+                  >
+                    {category.label}
+                  </button>
+                );
+              })}
             </div>
           </FadeIn>
 
@@ -153,11 +217,13 @@ export default function Events() {
             <div className="rounded-[42px] bg-[#f7f3f2] p-8 text-base text-slate-600">Loading events...</div>
           ) : events.length === 0 ? (
             <div className="rounded-[42px] bg-[#f7f3f2] p-8 text-base text-slate-600">No events have been published yet. Use the admin portal to add them.</div>
-          ) : events.map((event, i) => (
+          ) : filteredEvents.length === 0 ? (
+            <div className="rounded-[42px] bg-[#f7f3f2] p-8 text-base text-slate-600">No events found in this category yet.</div>
+          ) : filteredEvents.map((event, i) => (
             <FadeIn key={event.id || event.title} delay={i * 0.05}>
               <div
                 className="rounded-[42px] bg-[#f7f3f2] p-4 md:p-6 transition-all hover:scale-[1.01] cursor-pointer"
-                onClick={() => setSelectedEventId(event.id || event.title)}
+                onClick={() => setSelectedEventId(eventKey(event))}
               >
                 <div className="grid gap-6 md:grid-cols-[1.15fr,1fr,300px] md:items-center">
                   <div className="overflow-hidden rounded-[56px] bg-white shadow-sm">
@@ -180,12 +246,12 @@ export default function Events() {
 
                   <div className="flex flex-col gap-5 justify-center">
                     <EventLinkButton href={event.brochure_url || event.registration_url} label="Conference Brochure" />
-                    <EventLinkButton href={event.gallery_url} label="Photo Gallery" />
+                    <EventLinkButton href={getEventGalleryPath(event)} label="Photo Gallery" />
                     <EventLinkButton href={event.report_url} label="Conference Report" />
                   </div>
                 </div>
 
-                {selectedEventId === (event.id || event.title) && (
+                {selectedEventId === eventKey(event) && (
                   <motion.div
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -231,8 +297,10 @@ function EventLinkButton({ href, label }: { href?: string; label: string }) {
     return <div className={`${baseClass} opacity-50`}>{label}</div>;
   }
 
+  const isExternal = /^https?:\/\//.test(href);
+
   return (
-    <a href={href} target="_blank" rel="noreferrer" className={`${baseClass} hover:-translate-y-0.5`}>
+    <a href={href} target={isExternal ? "_blank" : undefined} rel={isExternal ? "noreferrer" : undefined} className={`${baseClass} hover:-translate-y-0.5`}>
       <span className="inline-flex items-center gap-2">{label} <ExternalLink size={18} /></span>
     </a>
   );

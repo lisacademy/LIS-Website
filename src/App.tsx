@@ -11,6 +11,7 @@ import Programs from "./pages/Programs.tsx";
 import ProgramDetail from "./pages/ProgramDetail.tsx";
 import LibraryAutomation from "./pages/LibraryAutomation.tsx";
 import Events from "./pages/Events.tsx";
+import EventGallery from "./pages/EventGallery.tsx";
 import KnowledgeHub from "./pages/KnowledgeHub.tsx";
 import Community from "./pages/Community.tsx";
 import Governance from "./pages/Governance.tsx";
@@ -53,6 +54,8 @@ const App = () => (
           <Route path="/programs/:slug" element={<ProgramDetail />} />
           <Route path="/library-automation" element={<LibraryAutomation />} />
           <Route path="/events" element={<Events />} />
+          <Route path="/events/gallery/:slug" element={<EventGallery />} />
+          <Route path="/events/gallery/:slug/:eventSlug" element={<EventGallery />} />
           <Route path="/knowledge" element={<KnowledgeHub />} />
           <Route path="/community" element={<Community />} />
           <Route path="/contact" element={<Contact />} />
