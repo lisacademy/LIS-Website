@@ -18,11 +18,15 @@ Use these settings:
 
 Required environment variables:
 
+- `NODE_VERSION=22`
+- `NODE_ENV=production`
 - `DATABASE_URL`
 - `JWT_SECRET`
 - `ADMIN_USERNAME`
 - `ADMIN_PASSWORD`
-- `VITE_DONATION_PAYMENT_URL_TEMPLATE`
+- `VITE_API_BASE_URL=`
+
+These same Render values are saved locally in `.env.render`. The local `.env` file also uses the same database and admin credentials.
 
 After the first deploy, run the schema once from Render Shell:
 
@@ -50,11 +54,15 @@ Use these settings:
 - Build command: `npm run build`
 - Output directory: `dist`
 
-Set this Vercel environment variable:
+Set this Vercel environment variable, also saved locally in `.env.vercel`:
 
 - `VITE_API_BASE_URL=https://YOUR-RENDER-SERVICE.onrender.com`
 
-If you prefer to keep `VITE_API_BASE_URL` empty, update `vercel.json` so `/api/*` rewrites to the current Render service URL. The current file points `/api/*` at `https://lisacademy-api.onrender.com`.
+For the current Render service name, use:
+
+- `VITE_API_BASE_URL=https://lisacademy-api.onrender.com`
+
+The current `vercel.json` also rewrites `/api/*` to `https://lisacademy-api.onrender.com`, so the frontend can work either through this environment variable or through the rewrite.
 
 After deploying Vercel, test the frontend from the browser. If you are using the `vercel.json` rewrite instead of `VITE_API_BASE_URL`, you can also test:
 
