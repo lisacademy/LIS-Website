@@ -31,6 +31,30 @@ export default function AboutSection() {
     },
   ];
 
+  const taglineCards = [
+    {
+      icon: Lightbulb,
+      title: "Learn",
+      accent: "#c0392b",
+      kicker: "Knowledge",
+      text: "Represents the continuous pursuit of knowledge, skills, innovation, and professional excellence. It emphasizes lifelong learning, research, training, and capacity building for library and information professionals.",
+    },
+    {
+      icon: Eye,
+      title: "Inspire",
+      accent: "#e67e22",
+      kicker: "Leadership",
+      text: "Signifies motivating individuals and institutions through visionary leadership, creativity, ethical practices, and the sharing of ideas that advance the profession and empower communities.",
+    },
+    {
+      icon: Target,
+      title: "Serve",
+      accent: "#27ae60",
+      kicker: "Impact",
+      text: "Highlights commitment to society through meaningful information services, community engagement, knowledge dissemination, and the promotion of equitable access to information for all.",
+    },
+  ];
+
   return (
     <section ref={ref} className="section-padding bg-background">
       <div className="max-w-7xl mx-auto">
@@ -198,43 +222,47 @@ export default function AboutSection() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 mb-16">
-            <div className="bg-card border border-border p-8 rounded-2xl hover-lift shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group">
-              <div className="absolute top-0 left-0 w-full h-1 bg-[#c0392b] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out"></div>
-              <h3 className="text-2xl font-serif font-bold text-foreground mb-4 text-center group-hover:text-[#c0392b] transition-colors duration-300">
-                Learn
-              </h3>
-              <p className="text-sm text-muted-foreground text-center leading-relaxed">
-                Represents the continuous pursuit of knowledge, skills,
-                innovation, and professional excellence. It emphasizes lifelong
-                learning, research, training, and capacity building for library
-                and information professionals.
-              </p>
-            </div>
-
-            <div className="bg-card border border-border p-8 rounded-2xl hover-lift shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group">
-              <div className="absolute top-0 left-0 w-full h-1 bg-[#e67e22] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out"></div>
-              <h3 className="text-2xl font-serif font-bold text-foreground mb-4 text-center group-hover:text-[#e67e22] transition-colors duration-300">
-                Inspire
-              </h3>
-              <p className="text-sm text-muted-foreground text-center leading-relaxed">
-                Signifies motivating individuals and institutions through
-                visionary leadership, creativity, ethical practices, and the
-                sharing of ideas that advance the profession and empower
-                communities.
-              </p>
-            </div>
-
-            <div className="bg-card border border-border p-8 rounded-2xl hover-lift shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group">
-              <div className="absolute top-0 left-0 w-full h-1 bg-[#27ae60] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out"></div>
-              <h3 className="text-2xl font-serif font-bold text-foreground mb-4 text-center group-hover:text-[#27ae60] transition-colors duration-300">
-                Serve
-              </h3>
-              <p className="text-sm text-muted-foreground text-center leading-relaxed">
-                Highlights commitment to society through meaningful information
-                services, community engagement, knowledge dissemination, and the
-                promotion of equitable access to information for all.
-              </p>
-            </div>
+            {taglineCards.map((card) => (
+              <div
+                key={card.title}
+                className="group relative overflow-hidden rounded-xl border border-border bg-white p-8 text-center shadow-[0_10px_30px_rgba(13,27,62,0.08)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_45px_rgba(13,27,62,0.14)]"
+              >
+                <div
+                  className="absolute inset-x-0 top-0 h-1.5"
+                  style={{ backgroundColor: card.accent }}
+                ></div>
+                <div
+                  className="absolute -right-8 -top-8 h-28 w-28 rounded-full opacity-10 transition-transform duration-500 group-hover:scale-125"
+                  style={{ backgroundColor: card.accent }}
+                ></div>
+                <div className="relative mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-50 shadow-inner">
+                  <card.icon
+                    size={28}
+                    className="transition-transform duration-300 group-hover:scale-110"
+                    style={{ color: card.accent }}
+                  />
+                </div>
+                <p
+                  className="mb-3 text-xs font-bold uppercase tracking-[0.22em]"
+                  style={{ color: card.accent }}
+                >
+                  {card.kicker}
+                </p>
+                <h3
+                  className="font-serif text-3xl font-bold transition-colors duration-300"
+                  style={{ color: card.accent }}
+                >
+                  {card.title}
+                </h3>
+                <div
+                  className="mx-auto my-5 h-0.5 w-14 rounded-full transition-all duration-300 group-hover:w-24"
+                  style={{ backgroundColor: card.accent }}
+                ></div>
+                <p className="text-base text-muted-foreground leading-7">
+                  {card.text}
+                </p>
+              </div>
+            ))}
           </div>
 
           <div className="text-center max-w-4xl mx-auto bg-accent/30 p-8 rounded-2xl border border-border/50 shadow-inner">
