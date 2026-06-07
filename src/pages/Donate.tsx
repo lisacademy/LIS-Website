@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Heart } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ExternalLink, Heart } from "lucide-react";
 import PageLayout from "@/components/PageLayout";
 import PageHeader from "@/components/PageHeader";
 import { getSection } from "@/lib/contentDb";
@@ -16,8 +16,24 @@ const donationSupportDetails = [
   "LIS Academy is recognized for CSR activities (CSR Registration No. CSR00108081), enjoys tax benefits under Sections 12AA and 80G of the Income Tax Act, is registered under NGO Darpan, and holds FCRA Registration No. 094421841, enabling it to receive foreign contributions legally and transparently.",
 ];
 
+const donationAmounts = [500, 1000, 2500, 5000];
+const paymentUrlTemplate = String(import.meta.env.VITE_DONATION_PAYMENT_URL_TEMPLATE || "").trim();
+
+function buildDonationPaymentUrl(amount: number) {
+  if (!paymentUrlTemplate || paymentUrlTemplate.includes("example.com")) {
+    return "";
+  }
+
+  const encodedAmount = encodeURIComponent(String(amount));
+  return paymentUrlTemplate.includes("{amount}")
+    ? paymentUrlTemplate.replaceAll("{amount}", encodedAmount)
+    : paymentUrlTemplate;
+}
+
 export default function Donate() {
   const [content, setContent] = useState(defaultDonateContent);
+  const [amount, setAmount] = useState(500);
+  const paymentUrl = useMemo(() => buildDonationPaymentUrl(amount), [amount]);
 
   useEffect(() => {
     getSection("donate").then((data) => {
@@ -67,7 +83,45 @@ export default function Donate() {
               </div>
             </div>
 
-            <div className="rounded-[32px] border border-white/10 bg-[#0d1b3e] p-8 flex flex-col items-center justify-center">
+            <div className="rounded-[32px] border border-white/10 bg-[#0d1b3e] p-8">
+              <div className="mb-8">
+                <h2 className="font-serif text-2xl text-white">Choose Amount</h2>
+                <p className="mt-2 text-sm leading-6 text-white/55">
+                  Select a contribution amount and continue to the payment gateway.
+                </p>
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  {donationAmounts.map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setAmount(value)}
+                      className="rounded-2xl border px-4 py-3 text-sm font-semibold transition-all"
+                      style={{
+                        borderColor: amount === value ? "#c9a84c" : "rgba(255,255,255,0.12)",
+                        background: amount === value ? "rgba(201,168,76,0.16)" : "rgba(255,255,255,0.05)",
+                        color: amount === value ? "#f0d080" : "rgba(255,255,255,0.72)",
+                      }}
+                    >
+                      Rs. {value.toLocaleString("en-IN")}
+                    </button>
+                  ))}
+                </div>
+                {paymentUrl ? (
+                  <a
+                    href={paymentUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold text-[#0d1b3e] transition-all hover:-translate-y-0.5"
+                    style={{ background: "linear-gradient(135deg, #f0d080, #c9a84c)" }}
+                  >
+                    Pay Online <ExternalLink size={15} />
+                  </a>
+                ) : (
+                  <div className="mt-5 rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm leading-6 text-amber-100/80">
+                    Online payment link is not configured yet. Please scan the QR code or update the Instamojo payment URL in the environment settings.
+                  </div>
+                )}
+              </div>
               <img
                 src="/upi-qr.png"
                 alt="LIS Academy UPI QR Code"

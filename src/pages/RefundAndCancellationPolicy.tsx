@@ -6,7 +6,8 @@ const policySections = [
     title: "Program and Event Cancellations by Participants",
     body: [
       "Cancellation requests for paid programs, workshops, conferences, or events should be sent to LIS Academy by email with the participant name, registered email or phone number, payment reference, and program details.",
-      "Refund eligibility may depend on the nature of the program, the timing of the request, and any event-specific cancellation terms communicated at the time of registration.",
+      "Unless a specific program page states otherwise, cancellation requests received at least 3 calendar days before the scheduled program or event are eligible for review for refund or transfer.",
+      "Requests received less than 3 calendar days before the program or after participation access, materials, certificates, or services have been issued may be non-refundable.",
     ],
   },
   {
@@ -20,21 +21,21 @@ const policySections = [
     title: "Membership Fees",
     body: [
       "Membership fees are generally non-refundable once the membership application has been processed or membership benefits have been activated.",
-      "If a payment error or duplicate payment occurs, contact LIS Academy with the payment details so the issue can be reviewed.",
+      "If a payment error or duplicate payment occurs, contact LIS Academy within 3 calendar days of payment with the payment details so the issue can be reviewed.",
     ],
   },
   {
     title: "Donations",
     body: [
       "Donations made to LIS Academy are generally non-refundable, except where a transaction error, duplicate payment, or other exceptional circumstance is verified.",
-      "Refund requests for donations must include the donor name, contact details, payment date, amount, and transaction reference.",
+      "Refund requests for donations must be submitted within 3 calendar days of payment and must include the donor name, contact details, payment date, amount, and transaction reference.",
     ],
   },
   {
     title: "Processing Time",
     body: [
       "Approved refunds will be processed to the original payment method where possible or through another reasonable method agreed by LIS Academy.",
-      "Refund processing timelines may vary depending on payment gateway, bank, or administrative processing requirements.",
+      "Approved refunds are normally initiated within 7 business days after approval. The final credit timeline may vary depending on the payment gateway, bank, or card network.",
     ],
   },
   {
