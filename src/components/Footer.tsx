@@ -14,13 +14,17 @@ const footerLinks = {
     { name: "Knowledge Hub", path: "/knowledge" },
     { name: "Publications", path: "/research" },
   ],
+  Legal: [
+    { name: "Terms and Conditions", path: "/terms-and-conditions" },
+    { name: "Refund and Cancellation Policy", path: "/refund-and-cancellation-policy" },
+  ],
 };
 
 export default function Footer() {
   return (
     <footer className="bg-gradient-navy text-primary-foreground">
       <div className="max-w-7xl mx-auto section-padding">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 mb-16">
 
           {/* Brand */}
           <div>
@@ -81,10 +85,13 @@ export default function Footer() {
 
         <div className="border-t border-primary-foreground/10 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-primary-foreground/50">© {new Date().getFullYear()} LIS Academy. All rights reserved.</p>
-          <div className="flex gap-6">
-            {["Privacy Policy", "Terms of Service", "Sitemap"].map((item) => (
-              <a key={item} href="#" className="text-xs text-primary-foreground/40 hover:text-primary-foreground/70 transition-colors">{item}</a>
-            ))}
+          <div className="flex flex-wrap justify-center gap-6">
+            <Link to="/terms-and-conditions" className="text-xs text-primary-foreground/40 hover:text-primary-foreground/70 transition-colors">
+              Terms and Conditions
+            </Link>
+            <Link to="/refund-and-cancellation-policy" className="text-xs text-primary-foreground/40 hover:text-primary-foreground/70 transition-colors">
+              Refund and Cancellation Policy
+            </Link>
           </div>
         </div>
       </div>

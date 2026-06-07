@@ -22,6 +22,8 @@ import Donate from "./pages/Donate.tsx";
 import Blog from "./pages/Blog.tsx";
 import LISATube from "./pages/LISATube.tsx";
 import Volunteer from "./pages/Volunteer.tsx";
+import TermsAndConditions from "./pages/TermsAndConditions.tsx";
+import RefundAndCancellationPolicy from "./pages/RefundAndCancellationPolicy.tsx";
 import AdminLogin from "./pages/admin/AdminLogin.tsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.tsx";
 import AdminMemberDetail from "./pages/admin/AdminMemberDetail.tsx";
@@ -64,6 +66,8 @@ const App = () => (
           <Route path="/donate" element={<Donate />} />
           <Route path="/blog" element={<Blog />} />
           <Route path="/lisatube" element={<LISATube />} />
+          <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+          <Route path="/refund-and-cancellation-policy" element={<RefundAndCancellationPolicy />} />
 
           {/* Admin routes (not linked from nav) */}
           <Route path="/admin" element={<AdminLogin />} />
