@@ -1,4 +1,4 @@
-export const TRUSTEE_IMAGE_VERSION = "20260512-2";
+export const TRUSTEE_IMAGE_VERSION = "20260607-1";
 
 export interface GovernanceMember {
   name: string;
@@ -95,7 +95,7 @@ export const invitedTrustees: GovernanceMember[] = [
 export const advisoryBoard: GovernanceMember[] = [
   {
     name: "Dr. Mahendra Jadhav",
-    role: "Librarian, IIT Madras, Chennai",
+    role: "Former-Librarian, IIT Madras, Chennai",
     photo: "/lisa-trustees/mahendra-jadhav.jpeg",
   },
   {
@@ -115,7 +115,7 @@ export const advisoryBoard: GovernanceMember[] = [
   },
   {
     name: "Dr. Sathish Kumar Hosamani",
-    role: "Director, Department of Public Libraries, Bangalore",
+    role: "Former-Director, Department of Public Libraries, Bangalore",
     photo: "/lisa-trustees/sathish-kumar-hosamani.png",
   },
   {
@@ -128,6 +128,11 @@ export const advisoryBoard: GovernanceMember[] = [
     role: "Deputy Librarian, IIT Bhubaneswar, Odisha",
     photo: "/lisa-trustees/bibhuti-sahoo.jpg",
   },
+  {
+    name: "Dr. Vasnth Kumar",
+    role: "Chief Librarian, AdiChunchanagiri University, Mandya",
+    photo: "/lisa-trustees/vasanthkumar.png",
+  }
 ];
 
 export const governanceTabs: GovernanceTab[] = [

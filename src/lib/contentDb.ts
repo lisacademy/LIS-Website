@@ -12,7 +12,8 @@ export type ContentSection =
   | "products"
   | "marquee"
   | "blog"
-  | "carousel";
+  | "carousel"
+  | "governance";
 
 export interface ContentItem {
   section: ContentSection;

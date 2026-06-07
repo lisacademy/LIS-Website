@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import PageLayout from "@/components/PageLayout";
 import PageHeader from "@/components/PageHeader";
@@ -7,6 +7,7 @@ import {
   TRUSTEE_IMAGE_VERSION,
   type GovernanceMember,
 } from "@/data/governance";
+import { fetchGovernanceTabs } from "@/lib/governanceDb";
 
 function getInitials(name: string) {
   return name
@@ -20,6 +21,12 @@ function getInitials(name: string) {
 }
 
 function MemberCard({ member, index }: { member: GovernanceMember; index: number }) {
+  const photoSrc = member.photo?.startsWith("data:")
+    ? member.photo
+    : member.photo
+      ? `${member.photo}?v=${TRUSTEE_IMAGE_VERSION}`
+      : "";
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -32,7 +39,7 @@ function MemberCard({ member, index }: { member: GovernanceMember; index: number
         <div className="w-36 h-36 md:w-40 md:h-40 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 font-serif text-4xl mb-5 border-4 border-white shadow-md overflow-hidden relative">
           {member.photo ? (
             <img
-              src={`${member.photo}?v=${TRUSTEE_IMAGE_VERSION}`}
+              src={photoSrc}
               alt={member.name}
               className="h-full w-full object-cover"
               style={{ objectPosition: member.imagePosition || "center center" }}
@@ -59,8 +66,13 @@ function MemberCard({ member, index }: { member: GovernanceMember; index: number
 
 export default function Governance() {
   const [activeTab, setActiveTab] = useState(governanceTabs[0].id);
+  const [tabs, setTabs] = useState(governanceTabs);
 
-  const activeData = governanceTabs.find((t) => t.id === activeTab)?.data || [];
+  useEffect(() => {
+    fetchGovernanceTabs().then(setTabs).catch(() => setTabs(governanceTabs));
+  }, []);
+
+  const activeData = tabs.find((t) => t.id === activeTab)?.data || [];
 
   return (
     <PageLayout>
@@ -81,7 +93,7 @@ export default function Governance() {
         <div className="max-w-7xl mx-auto px-6">
           {/* Subpage Tabs */}
           <div className="flex flex-wrap justify-center gap-2 md:gap-4 mb-16">
-            {governanceTabs.map((tab) => (
+            {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}

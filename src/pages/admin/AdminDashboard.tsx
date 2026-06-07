@@ -14,11 +14,12 @@ import { fetchEvents, saveEvent, deleteEvent, type EventItem } from "@/lib/event
 import { fetchBlogPosts, saveBlogPosts, type BlogPost } from "@/lib/blogDb";
 import { fetchCarouselSlides, saveCarouselSlides, type CarouselSlide } from "@/lib/carouselDb";
 import { fetchDocumentTemplates, saveDocumentTemplate, type DocumentTemplate } from "@/lib/documentTemplates";
+import { defaultEditableGovernanceTabs, fetchGovernanceTabs, saveGovernanceTabs, type EditableGovernanceMember, type EditableGovernanceTab } from "@/lib/governanceDb";
 import { normalizeLifeCertificateEditorState } from "@/lib/certificateGenerator";
 import type { Member, MemberStatus, MembershipTier } from "@/lib/supabase";
 import type { LifeCertificateEditorState } from "@/lib/membershipTypes";
 
-type Tab = "dashboard" | "members" | "events" | "blogs" | "carousel" | "templates" | "content" | "social" | "programs_research";
+type Tab = "dashboard" | "members" | "governance" | "events" | "blogs" | "carousel" | "templates" | "content" | "social" | "programs_research";
 
 export default function AdminDashboard() {
   const { isAuthenticated, logout } = useAdminAuth();
@@ -35,6 +36,7 @@ export default function AdminDashboard() {
   const navItems: { id: Tab; label: string; Icon: LucideIcon }[] = [
     { id: "dashboard", label: "Dashboard", Icon: LayoutDashboard },
     { id: "members", label: "Members", Icon: Users },
+    { id: "governance", label: "Governance", Icon: Users },
     { id: "events", label: "Events CMS", Icon: CalendarDays },
     { id: "blogs", label: "Blog CMS", Icon: FileText },
     { id: "carousel", label: "Hero Carousel", Icon: Images },
@@ -112,6 +114,7 @@ export default function AdminDashboard() {
         <div className="max-w-5xl mx-auto p-8">
           {tab === "dashboard" && <DashboardTab />}
           {tab === "members" && <MembersTab />}
+          {tab === "governance" && <GovernanceTab />}
           {tab === "events" && <EventsTab />}
           {tab === "blogs" && <BlogsTab />}
           {tab === "carousel" && <CarouselTab />}
@@ -514,6 +517,165 @@ function MembersTab() {
 }
 
 // ─────────── Site content tab ────────────────────────────────────
+function GovernanceTab() {
+  const [tabs, setTabs] = useState<EditableGovernanceTab[]>(() => defaultEditableGovernanceTabs());
+  const [activeTab, setActiveTab] = useState<EditableGovernanceTab["id"]>("founder");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    fetchGovernanceTabs()
+      .then(setTabs)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const active = tabs.find((tab) => tab.id === activeTab) || tabs[0];
+
+  const updateMember = (memberId: string, patch: Partial<EditableGovernanceMember>) => {
+    setTabs((current) => current.map((tab) => tab.id !== activeTab ? tab : {
+      ...tab,
+      data: tab.data.map((member) => member.id === memberId ? { ...member, ...patch } : member),
+    }));
+  };
+
+  const addMember = () => {
+    const id = `${activeTab}-${Date.now()}`;
+    setTabs((current) => current.map((tab) => tab.id !== activeTab ? tab : {
+      ...tab,
+      data: [
+        ...tab.data,
+        { id, name: "", role: "", photo: "", imagePosition: "center center" },
+      ],
+    }));
+  };
+
+  const removeMember = (memberId: string) => {
+    if (!confirm("Remove this governance person?")) return;
+    setTabs((current) => current.map((tab) => tab.id !== activeTab ? tab : {
+      ...tab,
+      data: tab.data.filter((member) => member.id !== memberId),
+    }));
+  };
+
+  const readPhoto = (file: File | null, memberId: string) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => updateMember(memberId, { photo: String(reader.result) });
+    reader.readAsDataURL(file);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setMessage("");
+    try {
+      const saved = await saveGovernanceTabs(tabs);
+      setTabs(saved);
+      setMessage("Governance people saved.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save governance people.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Governance</h1>
+          <p className="mt-2 text-sm text-white/40">Add, edit, and remove people shown on the Governance page.</p>
+        </div>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all hover:-translate-y-0.5 disabled:opacity-60"
+          style={{ background: "linear-gradient(135deg, #f0d080, #c9a84c)", color: "#0d1b3e" }}
+        >
+          <Save size={16} /> {saving ? "Saving..." : "Save Governance"}
+        </button>
+      </div>
+
+      {message && <p className="mb-4 text-sm" style={{ color: message.includes("saved") ? "#22c55e" : "#ef4444" }}>{message}</p>}
+      {loading ? <p className="text-white/40 text-center py-12">Loading governance people...</p> : (
+        <div className="space-y-6">
+          <div className="flex flex-wrap gap-2">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className="rounded-lg px-4 py-2 text-xs font-semibold transition-all"
+                style={{
+                  background: activeTab === tab.id ? "rgba(201,168,76,0.2)" : "rgba(255,255,255,0.05)",
+                  color: activeTab === tab.id ? "#c9a84c" : "rgba(255,255,255,0.55)",
+                  border: activeTab === tab.id ? "1px solid rgba(201,168,76,0.4)" : "1px solid rgba(255,255,255,0.06)",
+                }}
+              >
+                {tab.label} ({tab.data.length})
+              </button>
+            ))}
+          </div>
+
+          <Section title={active.label}>
+            <div className="mb-4 flex justify-end">
+              <button
+                onClick={addMember}
+                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold"
+                style={{ background: "#c9a84c", color: "#0d1b3e" }}
+              >
+                <Plus size={14} /> Add Person
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              {active.data.map((member) => (
+                <div key={member.id} className="rounded-xl border border-white/10 bg-black/10 p-4">
+                  <div className="grid gap-4 md:grid-cols-[96px,1fr]">
+                    <div>
+                      <div className="h-24 w-24 overflow-hidden rounded-full border-2 border-white/10 bg-white/5">
+                        {member.photo ? (
+                          <img src={member.photo} alt={member.name || "Governance person"} className="h-full w-full object-cover" style={{ objectPosition: member.imagePosition || "center center" }} />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-xl font-bold text-white/25">
+                            {(member.name || "?").charAt(0)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <Field label="Name" value={member.name} onChange={(value) => updateMember(member.id, { name: value })} />
+                        <Field label="Image Position" value={member.imagePosition || ""} onChange={(value) => updateMember(member.id, { imagePosition: value })} />
+                      </div>
+                      <Field label="Role / Designation" value={member.role} onChange={(value) => updateMember(member.id, { role: value })} textarea />
+                      <Field label="Photo URL or Data URL" value={member.photo || ""} onChange={(value) => updateMember(member.id, { photo: value })} />
+                      <div>
+                        <label className="mb-1.5 block text-xs uppercase tracking-wider text-white/40">Upload Photo</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(event) => readPhoto(event.target.files?.[0] || null, member.id)}
+                          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70 file:mr-4 file:rounded-lg file:border-0 file:bg-[#c9a84c] file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[#0d1b3e]"
+                        />
+                      </div>
+                      <button
+                        onClick={() => removeMember(member.id)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs font-semibold text-red-300"
+                      >
+                        <Trash2 size={14} /> Remove Person
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Section>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
 function ContentTab() {
   const [data, setData] = useState(() => ({
     ...getDefaultSection("contact"),

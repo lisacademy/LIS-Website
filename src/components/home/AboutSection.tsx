@@ -79,7 +79,7 @@ export default function AboutSection() {
             animate={inView ? { opacity: 1, x: 0 } : {}}
             transition={{ duration: 0.7, delay: 0.2 }}
           >
-            <div className="text-muted-foreground text-lg leading-relaxed space-y-4">
+            <div className="text-muted-foreground text-lg leading-relaxed text-justify space-y-4">
               <p>
                 LIS Academy, Bangalore, is a non-governmental organization
                 established as a Charitable Trust under Section 4 of the Indian

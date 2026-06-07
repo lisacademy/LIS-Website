@@ -185,7 +185,7 @@ export default function Events() {
               <span className="text-sm font-semibold tracking-widest uppercase mb-3 block" style={{ color: "#c9a84c" }}>
                 {EVENT_CATEGORIES.find((category) => category.id === activeCategory)?.label || "All Events"}
               </span>
-              <h2 className="font-serif text-3xl md:text-4xl font-bold text-white">Conference History and Recurring Formats</h2>
+              <h2 className="font-serif text-3xl md:text-4xl font-bold text-white">Past Events</h2>
             </div>
           </FadeIn>
 
