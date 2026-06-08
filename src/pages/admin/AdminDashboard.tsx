@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Settings, LogOut, Globe,
   Phone, Mail, MapPin, Youtube, Facebook, Twitter,
   Linkedin, Instagram, Save, ChevronRight, Menu, X,
-  CalendarDays, Plus, Trash2, Edit2, FileText, Images, type LucideIcon
+  CalendarDays, Plus, Trash2, Edit2, FileText, Images, ReceiptText, type LucideIcon
 } from "lucide-react";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { getDefaultSection, getSection, setSection } from "@/lib/contentDb";
@@ -14,12 +14,12 @@ import { fetchEvents, saveEvent, deleteEvent, type EventItem } from "@/lib/event
 import { fetchBlogPosts, saveBlogPosts, type BlogPost } from "@/lib/blogDb";
 import { fetchCarouselSlides, saveCarouselSlides, type CarouselSlide } from "@/lib/carouselDb";
 import { fetchDocumentTemplates, saveDocumentTemplate, type DocumentTemplate } from "@/lib/documentTemplates";
-import { defaultEditableGovernanceTabs, fetchGovernanceTabs, saveGovernanceTabs, type EditableGovernanceMember, type EditableGovernanceTab } from "@/lib/governanceDb";
+import { fetchDonations, type DonationRecord } from "@/lib/donationDb";
 import { normalizeLifeCertificateEditorState } from "@/lib/certificateGenerator";
 import type { Member, MemberStatus, MembershipTier } from "@/lib/supabase";
 import type { LifeCertificateEditorState } from "@/lib/membershipTypes";
 
-type Tab = "dashboard" | "members" | "governance" | "events" | "blogs" | "carousel" | "templates" | "content" | "social" | "programs_research";
+type Tab = "dashboard" | "members" | "donations" | "events" | "blogs" | "carousel" | "templates" | "content" | "social" | "programs_research";
 
 export default function AdminDashboard() {
   const { isAuthenticated, logout } = useAdminAuth();
@@ -36,7 +36,7 @@ export default function AdminDashboard() {
   const navItems: { id: Tab; label: string; Icon: LucideIcon }[] = [
     { id: "dashboard", label: "Dashboard", Icon: LayoutDashboard },
     { id: "members", label: "Members", Icon: Users },
-    { id: "governance", label: "Governance", Icon: Users },
+    { id: "donations", label: "Donations", Icon: ReceiptText },
     { id: "events", label: "Events CMS", Icon: CalendarDays },
     { id: "blogs", label: "Blog CMS", Icon: FileText },
     { id: "carousel", label: "Hero Carousel", Icon: Images },
@@ -114,7 +114,7 @@ export default function AdminDashboard() {
         <div className="max-w-5xl mx-auto p-8">
           {tab === "dashboard" && <DashboardTab />}
           {tab === "members" && <MembersTab />}
-          {tab === "governance" && <GovernanceTab />}
+          {tab === "donations" && <DonationsTab />}
           {tab === "events" && <EventsTab />}
           {tab === "blogs" && <BlogsTab />}
           {tab === "carousel" && <CarouselTab />}
@@ -517,162 +517,125 @@ function MembersTab() {
 }
 
 // ─────────── Site content tab ────────────────────────────────────
-function GovernanceTab() {
-  const [tabs, setTabs] = useState<EditableGovernanceTab[]>(() => defaultEditableGovernanceTabs());
-  const [activeTab, setActiveTab] = useState<EditableGovernanceTab["id"]>("founder");
+function DonationsTab() {
+  const [donations, setDonations] = useState<DonationRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    fetchGovernanceTabs()
-      .then(setTabs)
+  const load = () => {
+    setLoading(true);
+    setError("");
+    fetchDonations()
+      .then(setDonations)
+      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Failed to load donations."))
       .finally(() => setLoading(false));
-  }, []);
-
-  const active = tabs.find((tab) => tab.id === activeTab) || tabs[0];
-
-  const updateMember = (memberId: string, patch: Partial<EditableGovernanceMember>) => {
-    setTabs((current) => current.map((tab) => tab.id !== activeTab ? tab : {
-      ...tab,
-      data: tab.data.map((member) => member.id === memberId ? { ...member, ...patch } : member),
-    }));
   };
 
-  const addMember = () => {
-    const id = `${activeTab}-${Date.now()}`;
-    setTabs((current) => current.map((tab) => tab.id !== activeTab ? tab : {
-      ...tab,
-      data: [
-        ...tab.data,
-        { id, name: "", role: "", photo: "", imagePosition: "center center" },
-      ],
-    }));
-  };
+  useEffect(load, []);
 
-  const removeMember = (memberId: string) => {
-    if (!confirm("Remove this governance person?")) return;
-    setTabs((current) => current.map((tab) => tab.id !== activeTab ? tab : {
-      ...tab,
-      data: tab.data.filter((member) => member.id !== memberId),
-    }));
-  };
-
-  const readPhoto = (file: File | null, memberId: string) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => updateMember(memberId, { photo: String(reader.result) });
-    reader.readAsDataURL(file);
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    setMessage("");
-    try {
-      const saved = await saveGovernanceTabs(tabs);
-      setTabs(saved);
-      setMessage("Governance people saved.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not save governance people.");
-    } finally {
-      setSaving(false);
-    }
+  const totalAmount = donations.reduce((sum, donation) => sum + Number(donation.amount || 0), 0);
+  const syncedCount = donations.filter((donation) => donation.sheet_sync_status === "synced").length;
+  const failedCount = donations.filter((donation) => donation.sheet_sync_status === "failed").length;
+  const formatAmount = (amount: number, currency: string) =>
+    new Intl.NumberFormat("en-IN", { style: "currency", currency: currency || "INR", maximumFractionDigits: 2 }).format(amount);
+  const formatDate = (value: string) =>
+    new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  const syncColor: Record<DonationRecord["sheet_sync_status"], string> = {
+    synced: "#22c55e",
+    failed: "#ef4444",
+    pending: "#f97316",
+    not_configured: "#94a3b8",
   };
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+      <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Governance</h1>
-          <p className="mt-2 text-sm text-white/40">Add, edit, and remove people shown on the Governance page.</p>
+          <h1 className="text-2xl font-bold text-white">Donations</h1>
+          <p className="mt-1 text-sm text-white/40">Payment confirmations submitted from the Donate page.</p>
         </div>
         <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all hover:-translate-y-0.5 disabled:opacity-60"
-          style={{ background: "linear-gradient(135deg, #f0d080, #c9a84c)", color: "#0d1b3e" }}
+          onClick={load}
+          disabled={loading}
+          className="rounded-lg px-4 py-2 text-xs font-semibold transition-all disabled:opacity-50"
+          style={{ background: "rgba(201,168,76,0.15)", color: "#c9a84c", border: "1px solid rgba(201,168,76,0.3)" }}
         >
-          <Save size={16} /> {saving ? "Saving..." : "Save Governance"}
+          {loading ? "Refreshing..." : "Refresh"}
         </button>
       </div>
 
-      {message && <p className="mb-4 text-sm" style={{ color: message.includes("saved") ? "#22c55e" : "#ef4444" }}>{message}</p>}
-      {loading ? <p className="text-white/40 text-center py-12">Loading governance people...</p> : (
-        <div className="space-y-6">
-          <div className="flex flex-wrap gap-2">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className="rounded-lg px-4 py-2 text-xs font-semibold transition-all"
-                style={{
-                  background: activeTab === tab.id ? "rgba(201,168,76,0.2)" : "rgba(255,255,255,0.05)",
-                  color: activeTab === tab.id ? "#c9a84c" : "rgba(255,255,255,0.55)",
-                  border: activeTab === tab.id ? "1px solid rgba(201,168,76,0.4)" : "1px solid rgba(255,255,255,0.06)",
-                }}
-              >
-                {tab.label} ({tab.data.length})
-              </button>
-            ))}
-          </div>
+      <div className="mb-6 grid gap-4 md:grid-cols-4">
+        <DonationStat label="Total Received" value={formatAmount(totalAmount, "INR")} color="#c9a84c" />
+        <DonationStat label="Entries" value={donations.length.toString()} color="#38bdf8" />
+        <DonationStat label="Sheets Synced" value={syncedCount.toString()} color="#22c55e" />
+        <DonationStat label="Sheets Failed" value={failedCount.toString()} color="#ef4444" />
+      </div>
 
-          <Section title={active.label}>
-            <div className="mb-4 flex justify-end">
-              <button
-                onClick={addMember}
-                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold"
-                style={{ background: "#c9a84c", color: "#0d1b3e" }}
-              >
-                <Plus size={14} /> Add Person
-              </button>
-            </div>
+      {error && (
+        <p className="mb-4 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300">
+          {error}
+        </p>
+      )}
 
-            <div className="space-y-5">
-              {active.data.map((member) => (
-                <div key={member.id} className="rounded-xl border border-white/10 bg-black/10 p-4">
-                  <div className="grid gap-4 md:grid-cols-[96px,1fr]">
-                    <div>
-                      <div className="h-24 w-24 overflow-hidden rounded-full border-2 border-white/10 bg-white/5">
-                        {member.photo ? (
-                          <img src={member.photo} alt={member.name || "Governance person"} className="h-full w-full object-cover" style={{ objectPosition: member.imagePosition || "center center" }} />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-xl font-bold text-white/25">
-                            {(member.name || "?").charAt(0)}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="space-y-4">
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <Field label="Name" value={member.name} onChange={(value) => updateMember(member.id, { name: value })} />
-                        <Field label="Image Position" value={member.imagePosition || ""} onChange={(value) => updateMember(member.id, { imagePosition: value })} />
-                      </div>
-                      <Field label="Role / Designation" value={member.role} onChange={(value) => updateMember(member.id, { role: value })} textarea />
-                      <Field label="Photo URL or Data URL" value={member.photo || ""} onChange={(value) => updateMember(member.id, { photo: value })} />
-                      <div>
-                        <label className="mb-1.5 block text-xs uppercase tracking-wider text-white/40">Upload Photo</label>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(event) => readPhoto(event.target.files?.[0] || null, member.id)}
-                          className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70 file:mr-4 file:rounded-lg file:border-0 file:bg-[#c9a84c] file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[#0d1b3e]"
-                        />
-                      </div>
-                      <button
-                        onClick={() => removeMember(member.id)}
-                        className="inline-flex items-center gap-2 rounded-lg border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs font-semibold text-red-300"
-                      >
-                        <Trash2 size={14} /> Remove Person
-                      </button>
-                    </div>
+      {loading ? (
+        <p className="text-center text-white/40 py-12">Loading donations...</p>
+      ) : donations.length === 0 ? (
+        <p className="text-center text-white/40 py-12">No donation records yet.</p>
+      ) : (
+        <div className="space-y-3">
+          {donations.map((donation) => (
+            <div
+              key={donation.id}
+              className="rounded-xl p-4"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+            >
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-white">{donation.name}</span>
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[10px] font-medium capitalize"
+                      style={{ background: `${syncColor[donation.sheet_sync_status]}22`, color: syncColor[donation.sheet_sync_status] }}
+                    >
+                      Sheets {donation.sheet_sync_status.replace("_", " ")}
+                    </span>
                   </div>
+                  <p className="mt-1 text-xs text-white/45">{donation.designation}</p>
+                  <p className="mt-1 text-xs text-white/40">{donation.email} - {donation.phone}</p>
+                  <p className="mt-2 text-xs text-white/35">Submitted {formatDate(donation.created_at)}</p>
                 </div>
-              ))}
+                <div className="lg:text-right">
+                  <p className="text-2xl font-bold" style={{ color: "#c9a84c" }}>
+                    {formatAmount(donation.amount, donation.currency)}
+                  </p>
+                  <p className="mt-1 text-xs text-white/45">{donation.payment_mode}</p>
+                  <p className="mt-2 rounded-lg bg-black/20 px-3 py-2 text-xs font-medium text-white/65">
+                    Transaction ID: {donation.transaction_id}
+                  </p>
+                </div>
+              </div>
+              {donation.sheet_sync_error && (
+                <p className="mt-3 rounded-lg border border-red-400/10 bg-red-400/5 px-3 py-2 text-xs text-red-200">
+                  {donation.sheet_sync_error}
+                </p>
+              )}
             </div>
-          </Section>
+          ))}
         </div>
       )}
     </motion.div>
+  );
+}
+
+function DonationStat({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div
+      className="rounded-xl p-4"
+      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+    >
+      <p className="text-xs text-white/45">{label}</p>
+      <p className="mt-2 text-2xl font-bold" style={{ color }}>{value}</p>
+    </div>
   );
 }
 

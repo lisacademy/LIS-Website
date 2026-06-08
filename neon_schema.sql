@@ -88,6 +88,25 @@ WHERE a.ctid < b.ctid
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_events_unique_identity ON events (title, event_date, location);
 
+CREATE TABLE IF NOT EXISTS donations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  designation TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
+  currency TEXT NOT NULL DEFAULT 'INR',
+  payment_mode TEXT NOT NULL DEFAULT 'UPI QR',
+  transaction_id TEXT NOT NULL UNIQUE,
+  sheet_sync_status TEXT NOT NULL DEFAULT 'not_configured',
+  sheet_sync_error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  sheet_synced_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_donations_created_at ON donations (created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_donations_transaction_id ON donations (transaction_id);
+
 CREATE TABLE IF NOT EXISTS site_content (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   section TEXT NOT NULL,

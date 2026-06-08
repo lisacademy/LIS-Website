@@ -29,7 +29,7 @@ export default function MarqueeStrip({ fixed = false, onHeightChange }: MarqueeS
   if (!enabled || !text) return null;
 
   // Duplicate the text so the marquee loops seamlessly
-  const repeated = `${text}&nbsp;&nbsp;&nbsp;&bull;&nbsp;&nbsp;&nbsp;${text}&nbsp;&nbsp;&nbsp;&bull;&nbsp;&nbsp;&nbsp;${text}`;
+  const repeated = `${text}\u00a0\u00a0\u00a0•\u00a0\u00a0\u00a0${text}\u00a0\u00a0\u00a0•\u00a0\u00a0\u00a0${text}`;
 
   return (
     <div
@@ -66,13 +66,13 @@ export default function MarqueeStrip({ fixed = false, onHeightChange }: MarqueeS
           ref={trackRef}
           className="flex whitespace-nowrap"
           style={{
-            animation: paused ? "none" : "lisMarquee 10s linear infinite",
+            animation: paused ? "none" : "lisMarquee 32s linear infinite",
             animationPlayState: paused ? "paused" : "running",
           }}
         >
           <span
-            className="text-white font-semibold px-6"
-            style={{ fontSize: 14, letterSpacing: "0.02em" }}
+            className="text-white font-medium px-6"
+            style={{ fontSize: 12, letterSpacing: "0.02em" }}
             dangerouslySetInnerHTML={{ __html: repeated }}
           />
         </div>
