@@ -15,6 +15,8 @@ const app = express();
 const port = Number(process.env.PORT || 8787);
 const adminUsername = String(process.env.ADMIN_USERNAME || "").trim();
 const adminPassword = String(process.env.ADMIN_PASSWORD || "");
+const donationSheetWebhookUrl = String(process.env.DONATION_GOOGLE_SHEET_WEBHOOK_URL || "").trim();
+const donationSheetWebhookSecret = String(process.env.DONATION_GOOGLE_SHEET_WEBHOOK_SECRET || "").trim();
 let databaseReady = false;
 let databaseStartupError = null;
 
@@ -81,6 +83,29 @@ async function ensureEventLinkColumns() {
   await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS brochure_url TEXT`;
   await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS gallery_url TEXT`;
   await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS report_url TEXT`;
+}
+
+async function ensureDonationTable() {
+  await sql`CREATE EXTENSION IF NOT EXISTS pgcrypto`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS donations (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name TEXT NOT NULL,
+      designation TEXT NOT NULL,
+      email TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
+      currency TEXT NOT NULL DEFAULT 'INR',
+      payment_mode TEXT NOT NULL DEFAULT 'UPI QR',
+      transaction_id TEXT NOT NULL UNIQUE,
+      sheet_sync_status TEXT NOT NULL DEFAULT 'not_configured',
+      sheet_sync_error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      sheet_synced_at TIMESTAMPTZ
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_donations_created_at ON donations (created_at DESC)`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_donations_transaction_id ON donations (transaction_id)`;
 }
 
 function normalizeEditorState(value) {
@@ -201,10 +226,57 @@ function normalizeTemplate(row) {
   };
 }
 
+function normalizeDonation(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    designation: row.designation,
+    email: row.email,
+    phone: row.phone,
+    amount: Number(row.amount),
+    currency: row.currency || "INR",
+    payment_mode: row.payment_mode || "UPI QR",
+    transaction_id: row.transaction_id,
+    sheet_sync_status: row.sheet_sync_status || "not_configured",
+    sheet_sync_error: row.sheet_sync_error || undefined,
+    created_at: row.created_at,
+    sheet_synced_at: row.sheet_synced_at || undefined,
+  };
+}
+
 function assertRequired(value, label) {
   if (!String(value || "").trim()) {
     throw new Error(`${label} is required.`);
   }
+}
+
+function validateDonation(body) {
+  const amount = Number(body.amount);
+  const values = {
+    name: String(body.name || "").trim(),
+    designation: String(body.designation || "").trim(),
+    email: String(body.email || "").trim().toLowerCase(),
+    phone: String(body.phone || "").trim(),
+    amount,
+    transactionId: String(body.transactionId || body.transaction_id || "").trim(),
+  };
+
+  assertRequired(values.name, "Name");
+  assertRequired(values.designation, "Designation");
+  assertRequired(values.email, "Email");
+  assertRequired(values.phone, "Phone number");
+  assertRequired(values.transactionId, "Transaction ID");
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
+    throw new Error("A valid email address is required.");
+  }
+
+  if (!Number.isFinite(values.amount) || values.amount <= 0) {
+    throw new Error("A valid paid amount is required.");
+  }
+
+  return values;
 }
 
 function validateRegistration(body) {
@@ -388,6 +460,94 @@ app.get("/api/image-proxy", async (req, res) => {
     res.send(buffer);
   } catch {
     res.status(400).json({ error: "Invalid image URL." });
+  }
+});
+
+app.post("/api/donations", async (req, res) => {
+  try {
+    const donation = validateDonation(req.body);
+    const inserted = await sql`
+      INSERT INTO donations (
+        name,
+        designation,
+        email,
+        phone,
+        amount,
+        currency,
+        payment_mode,
+        transaction_id,
+        sheet_sync_status
+      ) VALUES (
+        ${donation.name},
+        ${donation.designation},
+        ${donation.email},
+        ${donation.phone},
+        ${donation.amount},
+        ${"INR"},
+        ${"UPI QR"},
+        ${donation.transactionId},
+        ${donationSheetWebhookUrl ? "pending" : "not_configured"}
+      )
+      RETURNING *
+    `;
+    const savedDonation = inserted[0];
+
+    if (!donationSheetWebhookUrl) {
+      return res.status(201).json({ saved: true, donation: normalizeDonation(savedDonation) });
+    }
+
+    const payload = {
+      submittedAt: savedDonation.created_at,
+      currency: "INR",
+      paymentMode: "UPI QR",
+      secret: donationSheetWebhookSecret || undefined,
+      ...donation,
+    };
+
+    const headers = {
+      "Content-Type": "application/json",
+      "User-Agent": "LISAcademyWebsite/1.0",
+    };
+
+    try {
+      const response = await fetch(donationSheetWebhookUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      });
+      const responseText = await response.text();
+
+      if (!response.ok) {
+        throw new Error(`Google Sheets webhook responded with ${response.status}.${responseText ? ` ${responseText.slice(0, 300)}` : ""}`);
+      }
+    } catch (syncError) {
+      const message = (syncError instanceof Error ? syncError.message : "Google Sheets sync failed.").slice(0, 500);
+      const rows = await sql`
+        UPDATE donations
+        SET sheet_sync_status = 'failed',
+            sheet_sync_error = ${message}
+        WHERE id = ${savedDonation.id}
+        RETURNING *
+      `;
+      return res.status(201).json({ saved: true, donation: normalizeDonation(rows[0]), sheet_error: message });
+    }
+
+    const rows = await sql`
+      UPDATE donations
+      SET sheet_sync_status = 'synced',
+          sheet_sync_error = NULL,
+          sheet_synced_at = NOW()
+      WHERE id = ${savedDonation.id}
+      RETURNING *
+    `;
+
+    res.status(201).json({ saved: true, donation: normalizeDonation(rows[0]) });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to submit donation details.";
+    if (error?.code === "23505" || message.includes("duplicate key")) {
+      return res.status(409).json({ error: "This transaction ID has already been submitted." });
+    }
+    res.status(400).json({ error: message });
   }
 });
 
@@ -710,6 +870,20 @@ app.get("/api/admin/members", requireAdmin, async (req, res) => {
     res.json({ members: rows.map(publicMember), total, page, limit });
   } catch {
     res.status(500).json({ error: "Failed to load members." });
+  }
+});
+
+app.get("/api/admin/donations", requireAdmin, async (_req, res) => {
+  try {
+    const rows = await sql`
+      SELECT *
+      FROM donations
+      ORDER BY created_at DESC
+      LIMIT 1000
+    `;
+    res.json({ donations: rows.map(normalizeDonation) });
+  } catch {
+    res.status(500).json({ error: "Failed to load donations." });
   }
 });
 
@@ -1110,6 +1284,7 @@ async function prepareDatabase() {
   try {
     await ensureMemberDocumentColumns();
     await ensureEventLinkColumns();
+    await ensureDonationTable();
     databaseReady = true;
     databaseStartupError = null;
     console.log("[db] Database preparation completed.");

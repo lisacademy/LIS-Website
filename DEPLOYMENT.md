@@ -26,7 +26,13 @@ Required environment variables:
 - `ADMIN_PASSWORD`
 - `VITE_API_BASE_URL=`
 
-These same Render values are saved locally in `.env.render`. The local `.env` file also uses the same database and admin credentials.
+Use `.env.render.example` as the checklist for Render. The Neon database value should use this host:
+
+```text
+ep-billowing-poetry-aq4d1xzh-pooler.c-8.us-east-1.aws.neon.tech
+```
+
+Keep the full database URL in Render's Environment tab. Do not commit the real password to this repository.
 
 After the first deploy, run the schema once from Render Shell:
 

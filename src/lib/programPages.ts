@@ -197,6 +197,7 @@ export const allProductsAndServices = {
     { term: "23. Customized Institutional Support Services", details: "Tailor-made services designed according to the specific academic, technological, research, and administrative requirements of educational and research institutions." },
     { term: "24. Webinar & Online Learning Platforms", details: "Regular online training programmes, webinars, virtual workshops, and digital learning initiatives for continuous professional development and wider outreach." },
     { term: "25. CSR, Outreach & Social Development Initiatives", details: "Educational outreach, literacy promotion, capacity-building activities, and socially relevant programmes undertaken through collaborative and CSR-supported initiatives." },
+    { term: "26. App Development Service", details: "ABC" },
   ],
 };
 

@@ -1,8 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Heart } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Heart, Loader2, ReceiptText } from "lucide-react";
 import PageLayout from "@/components/PageLayout";
 import PageHeader from "@/components/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { getSection } from "@/lib/contentDb";
+import { apiRequest } from "@/lib/api";
 
 const defaultDonateContent = {
   headline: "Support LIS Academy ?",
@@ -16,24 +20,21 @@ const donationSupportDetails = [
   "LIS Academy is recognized for CSR activities (CSR Registration No. CSR00108081), enjoys tax benefits under Sections 12AA and 80G of the Income Tax Act, is registered under NGO Darpan, and holds FCRA Registration No. 094421841, enabling it to receive foreign contributions legally and transparently.",
 ];
 
-const donationAmounts = [500, 1000, 2500, 5000];
-const paymentUrlTemplate = String(import.meta.env.VITE_DONATION_PAYMENT_URL_TEMPLATE || "").trim();
-
-function buildDonationPaymentUrl(amount: number) {
-  if (!paymentUrlTemplate || paymentUrlTemplate.includes("example.com")) {
-    return "";
-  }
-
-  const encodedAmount = encodeURIComponent(String(amount));
-  return paymentUrlTemplate.includes("{amount}")
-    ? paymentUrlTemplate.replaceAll("{amount}", encodedAmount)
-    : paymentUrlTemplate;
-}
+const initialDonationForm = {
+  name: "",
+  designation: "",
+  email: "",
+  phone: "",
+  amount: "",
+  transactionId: "",
+};
 
 export default function Donate() {
   const [content, setContent] = useState(defaultDonateContent);
-  const [amount, setAmount] = useState(500);
-  const paymentUrl = useMemo(() => buildDonationPaymentUrl(amount), [amount]);
+  const [form, setForm] = useState(initialDonationForm);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState("");
+  const [submitError, setSubmitError] = useState("");
 
   useEffect(() => {
     getSection("donate").then((data) => {
@@ -44,6 +45,30 @@ export default function Donate() {
       });
     });
   }, []);
+
+  const updateField = (field: keyof typeof form, value: string) => {
+    setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSubmitMessage("");
+    setSubmitError("");
+    setIsSubmitting(true);
+
+    try {
+      await apiRequest<{ saved: boolean }>("/api/donations", {
+        method: "POST",
+        body: JSON.stringify(form),
+      });
+      setSubmitMessage("Thank you. Your payment details have been submitted to LIS Academy.");
+      setForm(initialDonationForm);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Could not submit donation details.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <PageLayout>
@@ -83,51 +108,126 @@ export default function Donate() {
               </div>
             </div>
 
-            <div className="rounded-[32px] border border-white/10 bg-[#0d1b3e] p-8">
-              <div className="mb-8">
-                <h2 className="font-serif text-2xl text-white">Choose Amount</h2>
-                <p className="mt-2 text-sm leading-6 text-white/55">
-                  Select a contribution amount and continue to the payment gateway.
-                </p>
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                  {donationAmounts.map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setAmount(value)}
-                      className="rounded-2xl border px-4 py-3 text-sm font-semibold transition-all"
-                      style={{
-                        borderColor: amount === value ? "#c9a84c" : "rgba(255,255,255,0.12)",
-                        background: amount === value ? "rgba(201,168,76,0.16)" : "rgba(255,255,255,0.05)",
-                        color: amount === value ? "#f0d080" : "rgba(255,255,255,0.72)",
-                      }}
-                    >
-                      Rs. {value.toLocaleString("en-IN")}
-                    </button>
-                  ))}
-                </div>
-                {paymentUrl ? (
-                  <a
-                    href={paymentUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold text-[#0d1b3e] transition-all hover:-translate-y-0.5"
-                    style={{ background: "linear-gradient(135deg, #f0d080, #c9a84c)" }}
-                  >
-                    Pay Online <ExternalLink size={15} />
-                  </a>
-                ) : (
-                  <div className="mt-5 rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm leading-6 text-amber-100/80">
-                    Online payment link is not configured yet. Please scan the QR code or update the Instamojo payment URL in the environment settings.
-                  </div>
-                )}
-              </div>
+            <div className="rounded-[32px] border border-white/10 bg-[#0d1b3e] p-8 flex flex-col items-center justify-center">
               <img
                 src="/upi-qr.png"
                 alt="LIS Academy UPI QR Code"
                 className="w-full max-w-sm h-auto object-contain rounded-2xl bg-white"
               />
+              <p className="mt-5 text-center text-sm leading-6 text-white/70">
+                Scan the QR code to complete your UPI payment, then submit the transaction details below.
+              </p>
             </div>
+          </div>
+
+          <div className="mt-8 rounded-[32px] border border-white/10 bg-white p-6 shadow-xl md:p-8">
+            <div className="flex flex-col gap-3 border-b border-slate-200 pb-5 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full bg-[#0d1b3e]/10 px-4 py-2 text-sm font-semibold text-[#0d1b3e]">
+                  <ReceiptText size={16} /> Donation confirmation
+                </div>
+                <h2 className="mt-4 font-serif text-2xl text-[#0d1b3e] md:text-3xl">
+                  Share your payment details
+                </h2>
+              </div>
+              <p className="max-w-xl text-sm leading-6 text-slate-600">
+                These details are recorded for LIS Academy donation tracking and receipt follow-up.
+              </p>
+            </div>
+
+            <form className="mt-6 grid gap-5 md:grid-cols-2" onSubmit={handleSubmit}>
+              <div className="space-y-2">
+                <Label htmlFor="donor-name">Name</Label>
+                <Input
+                  id="donor-name"
+                  value={form.name}
+                  onChange={(event) => updateField("name", event.target.value)}
+                  placeholder="Full name"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="donor-designation">Designation</Label>
+                <Input
+                  id="donor-designation"
+                  value={form.designation}
+                  onChange={(event) => updateField("designation", event.target.value)}
+                  placeholder="Designation / role"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="donor-email">Email</Label>
+                <Input
+                  id="donor-email"
+                  type="email"
+                  value={form.email}
+                  onChange={(event) => updateField("email", event.target.value)}
+                  placeholder="name@example.com"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="donor-phone">Phone Number</Label>
+                <Input
+                  id="donor-phone"
+                  type="tel"
+                  value={form.phone}
+                  onChange={(event) => updateField("phone", event.target.value)}
+                  placeholder="Mobile number"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="donation-amount">Amount Paid</Label>
+                <Input
+                  id="donation-amount"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={form.amount}
+                  onChange={(event) => updateField("amount", event.target.value)}
+                  placeholder="Amount in INR"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="transaction-id">Transaction ID</Label>
+                <Input
+                  id="transaction-id"
+                  value={form.transactionId}
+                  onChange={(event) => updateField("transactionId", event.target.value)}
+                  placeholder="UPI transaction reference"
+                  required
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                {submitError ? (
+                  <p className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {submitError}
+                  </p>
+                ) : null}
+                {submitMessage ? (
+                  <p className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    {submitMessage}
+                  </p>
+                ) : null}
+                <Button
+                  type="submit"
+                  className="w-full bg-[#c9a84c] text-[#091529] hover:bg-[#d8ba65] md:w-auto"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? <Loader2 className="animate-spin" /> : <ReceiptText />}
+                  Submit Payment Details
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       </section>
