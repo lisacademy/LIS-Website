@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Settings, LogOut, Globe,
   Phone, Mail, MapPin, Youtube, Facebook, Twitter,
   Linkedin, Instagram, Save, ChevronRight, Menu, X,
-  CalendarDays, Plus, Trash2, Edit2, FileText, Images, ReceiptText, type LucideIcon
+  CalendarDays, Plus, Trash2, Edit2, FileText, Images, ReceiptText, CheckCircle2, XCircle, type LucideIcon
 } from "lucide-react";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { getDefaultSection, getSection, setSection } from "@/lib/contentDb";
@@ -14,7 +14,7 @@ import { fetchEvents, saveEvent, deleteEvent, type EventItem } from "@/lib/event
 import { fetchBlogPosts, saveBlogPosts, type BlogPost } from "@/lib/blogDb";
 import { fetchCarouselSlides, saveCarouselSlides, type CarouselSlide } from "@/lib/carouselDb";
 import { fetchDocumentTemplates, saveDocumentTemplate, type DocumentTemplate } from "@/lib/documentTemplates";
-import { fetchDonations, type DonationRecord } from "@/lib/donationDb";
+import { fetchDonations, updateDonationStatus, type DonationRecord, type DonationStatus } from "@/lib/donationDb";
 import { normalizeLifeCertificateEditorState } from "@/lib/certificateGenerator";
 import type { Member, MemberStatus, MembershipTier } from "@/lib/supabase";
 import type { LifeCertificateEditorState } from "@/lib/membershipTypes";
@@ -521,6 +521,8 @@ function DonationsTab() {
   const [donations, setDonations] = useState<DonationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [filter, setFilter] = useState<"all" | DonationStatus>("all");
+  const [busyIds, setBusyIds] = useState<string[]>([]);
 
   const load = () => {
     setLoading(true);
@@ -533,18 +535,56 @@ function DonationsTab() {
 
   useEffect(load, []);
 
-  const totalAmount = donations.reduce((sum, donation) => sum + Number(donation.amount || 0), 0);
+  const approvedDonations = donations.filter((donation) => donation.status === "approved");
+  const pendingCount = donations.filter((donation) => donation.status === "pending").length;
+  const rejectedCount = donations.filter((donation) => donation.status === "rejected").length;
+  const filteredDonations = filter === "all" ? donations : donations.filter((donation) => donation.status === filter);
+  const totalAmount = approvedDonations.reduce((sum, donation) => sum + Number(donation.amount || 0), 0);
   const syncedCount = donations.filter((donation) => donation.sheet_sync_status === "synced").length;
-  const failedCount = donations.filter((donation) => donation.sheet_sync_status === "failed").length;
   const formatAmount = (amount: number, currency: string) =>
     new Intl.NumberFormat("en-IN", { style: "currency", currency: currency || "INR", maximumFractionDigits: 2 }).format(amount);
   const formatDate = (value: string) =>
     new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  const statusColor: Record<DonationStatus, string> = {
+    approved: "#22c55e",
+    rejected: "#ef4444",
+    pending: "#f97316",
+  };
   const syncColor: Record<DonationRecord["sheet_sync_status"], string> = {
     synced: "#22c55e",
     failed: "#ef4444",
     pending: "#f97316",
     not_configured: "#94a3b8",
+  };
+  const filters: { id: "all" | DonationStatus; label: string; count: number }[] = [
+    { id: "all", label: "All", count: donations.length },
+    { id: "pending", label: "Pending", count: pendingCount },
+    { id: "approved", label: "Approved", count: approvedDonations.length },
+    { id: "rejected", label: "Rejected", count: rejectedCount },
+  ];
+
+  const setDonationBusy = (id: string, busy: boolean) => {
+    setBusyIds((current) => busy ? [...new Set([...current, id])] : current.filter((value) => value !== id));
+  };
+
+  const handleStatus = async (id: string, status: DonationStatus) => {
+    const rejectionReason = status === "rejected"
+      ? window.prompt("Enter the reason for rejecting this donation. This will be emailed to the donor.")?.trim()
+      : undefined;
+    if (status === "rejected" && !rejectionReason) return;
+
+    const previous = donations;
+    setDonations((current) => current.map((donation) => donation.id === id ? { ...donation, status, rejection_reason: rejectionReason } : donation));
+    setDonationBusy(id, true);
+    try {
+      const saved = await updateDonationStatus(id, status, rejectionReason);
+      setDonations((current) => current.map((donation) => donation.id === id ? saved : donation));
+    } catch (statusError) {
+      setDonations(previous);
+      alert(statusError instanceof Error ? statusError.message : "Failed to update donation status.");
+    } finally {
+      setDonationBusy(id, false);
+    }
   };
 
   return (
@@ -566,9 +606,27 @@ function DonationsTab() {
 
       <div className="mb-6 grid gap-4 md:grid-cols-4">
         <DonationStat label="Total Received" value={formatAmount(totalAmount, "INR")} color="#c9a84c" />
-        <DonationStat label="Entries" value={donations.length.toString()} color="#38bdf8" />
-        <DonationStat label="Sheets Synced" value={syncedCount.toString()} color="#22c55e" />
-        <DonationStat label="Sheets Failed" value={failedCount.toString()} color="#ef4444" />
+        <DonationStat label="Pending Review" value={pendingCount.toString()} color="#f97316" />
+        <DonationStat label="Approved" value={approvedDonations.length.toString()} color="#22c55e" />
+        <DonationStat label="Rejected" value={rejectedCount.toString()} color="#ef4444" />
+      </div>
+
+      <div className="mb-6 flex flex-wrap gap-2">
+        {filters.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => setFilter(item.id)}
+            className="rounded-lg px-3 py-1.5 text-xs font-medium transition-all"
+            style={{
+              background: filter === item.id ? "rgba(201,168,76,0.2)" : "rgba(255,255,255,0.05)",
+              color: filter === item.id ? "#c9a84c" : "rgba(255,255,255,0.55)",
+              border: filter === item.id ? "1px solid rgba(201,168,76,0.4)" : "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            {item.label} ({item.count})
+          </button>
+        ))}
+        <span className="ml-auto text-xs text-white/35">Sheets synced: {syncedCount}</span>
       </div>
 
       {error && (
@@ -581,9 +639,11 @@ function DonationsTab() {
         <p className="text-center text-white/40 py-12">Loading donations...</p>
       ) : donations.length === 0 ? (
         <p className="text-center text-white/40 py-12">No donation records yet.</p>
+      ) : filteredDonations.length === 0 ? (
+        <p className="text-center text-white/40 py-12">No {filter} donation records.</p>
       ) : (
         <div className="space-y-3">
-          {donations.map((donation) => (
+          {filteredDonations.map((donation) => (
             <div
               key={donation.id}
               className="rounded-xl p-4"
@@ -593,6 +653,12 @@ function DonationsTab() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold text-white">{donation.name}</span>
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[10px] font-medium capitalize"
+                      style={{ background: `${statusColor[donation.status]}22`, color: statusColor[donation.status] }}
+                    >
+                      {donation.status}
+                    </span>
                     <span
                       className="rounded-full px-2 py-0.5 text-[10px] font-medium capitalize"
                       style={{ background: `${syncColor[donation.sheet_sync_status]}22`, color: syncColor[donation.sheet_sync_status] }}
@@ -612,8 +678,34 @@ function DonationsTab() {
                   <p className="mt-2 rounded-lg bg-black/20 px-3 py-2 text-xs font-medium text-white/65">
                     Transaction ID: {donation.transaction_id}
                   </p>
+                  <div className="mt-3 flex flex-wrap justify-start gap-2 lg:justify-end">
+                    <button
+                      onClick={() => handleStatus(donation.id, "approved")}
+                      disabled={busyIds.includes(donation.id) || donation.status === "approved"}
+                      className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all disabled:opacity-40"
+                      style={{ background: "#22c55e22", color: "#22c55e", border: "1px solid #22c55e44" }}
+                    >
+                      <CheckCircle2 size={14} /> Approve
+                    </button>
+                    <button
+                      onClick={() => handleStatus(donation.id, "rejected")}
+                      disabled={busyIds.includes(donation.id) || donation.status === "rejected"}
+                      className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all disabled:opacity-40"
+                      style={{ background: "#ef444422", color: "#ef4444", border: "1px solid #ef444444" }}
+                    >
+                      <XCircle size={14} /> Reject
+                    </button>
+                  </div>
                 </div>
               </div>
+              {donation.reviewed_at && (
+                <p className="mt-3 text-xs text-white/35">Reviewed {formatDate(donation.reviewed_at)}</p>
+              )}
+              {donation.rejection_reason && (
+                <p className="mt-3 rounded-lg border border-red-400/10 bg-red-400/5 px-3 py-2 text-xs text-red-200">
+                  Rejection reason: {donation.rejection_reason}
+                </p>
+              )}
               {donation.sheet_sync_error && (
                 <p className="mt-3 rounded-lg border border-red-400/10 bg-red-400/5 px-3 py-2 text-xs text-red-200">
                   {donation.sheet_sync_error}
