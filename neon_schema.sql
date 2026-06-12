@@ -88,6 +88,13 @@ WHERE a.ctid < b.ctid
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_events_unique_identity ON events (title, event_date, location);
 
+UPDATE events
+SET event_date = '15-17 October 2026',
+    updated_at = NOW()
+WHERE title = '5th LISACON 2024 International Conference on Intelligent Libraries'
+  AND location = 'Presidency University, Bengaluru'
+  AND event_date IN ('2024-10-17', 'November 7-9, 2024');
+
 CREATE TABLE IF NOT EXISTS site_content (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   section TEXT NOT NULL,
@@ -212,7 +219,7 @@ INSERT INTO events (
   ),
   (
     '5th LISACON 2024 International Conference on Intelligent Libraries',
-    'November 7-9, 2024',
+    '15-17 October 2026',
     'Presidency University, Bengaluru',
     'International Conference',
     'The 5th LISACON 2024 International Conference focused on Intelligent Libraries and brought together LIS professionals, researchers, educators, and technology partners.',

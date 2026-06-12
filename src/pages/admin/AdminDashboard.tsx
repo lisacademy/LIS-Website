@@ -1033,7 +1033,7 @@ function EventsTab() {
           <Section title="Event Details">
             <Field label="Title" value={editingEvent.title || ""} onChange={v => setEditingEvent({ ...editingEvent, title: v })} />
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Date" type="date" value={editingEvent.date || ""} onChange={v => setEditingEvent({ ...editingEvent, date: v })} />
+              <Field label="Date" value={editingEvent.date || ""} onChange={v => setEditingEvent({ ...editingEvent, date: v })} />
               <Field label="Location" value={editingEvent.location || ""} onChange={v => setEditingEvent({ ...editingEvent, location: v })} />
             </div>
             <Field label="Type (e.g. Conference, Workshop)" value={editingEvent.type || ""} onChange={v => setEditingEvent({ ...editingEvent, type: v })} />
