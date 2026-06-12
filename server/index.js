@@ -11,6 +11,7 @@ dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, ".env") });
 const distDir = path.resolve(__dirname, "../dist");
 const app = express();
 const port = Number(process.env.PORT || 8787);
@@ -19,7 +20,8 @@ const adminPassword = String(process.env.ADMIN_PASSWORD || "");
 const donationSheetWebhookUrl = String(process.env.DONATION_GOOGLE_SHEET_WEBHOOK_URL || "").trim();
 const donationSheetWebhookSecret = String(process.env.DONATION_GOOGLE_SHEET_WEBHOOK_SECRET || "").trim();
 const smtpUser = String(process.env.SMTP_USER || "lisacademyorganisation@gmail.com").trim();
-const smtpAppPassword = String(process.env.SMTP_APP_PASSWORD || "tbav wwrx mzsh zcjo").trim();
+const smtpAppPassword = String(process.env.SMTP_APP_PASSWORD || "").trim();
+const normalizedSmtpAppPassword = smtpAppPassword.replace(/\s+/g, "");
 const mailFrom = String(process.env.MAIL_FROM || `LIS Academy <${smtpUser}>`).trim();
 const donationAdminEmail = String(process.env.DONATION_ADMIN_EMAIL || smtpUser).trim();
 let databaseReady = false;
@@ -298,13 +300,13 @@ function validateDonation(body) {
 let mailTransporter = null;
 
 function getMailTransporter() {
-  if (!smtpUser || !smtpAppPassword) return null;
+  if (!smtpUser || !normalizedSmtpAppPassword) return null;
   if (!mailTransporter) {
     mailTransporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
         user: smtpUser,
-        pass: smtpAppPassword,
+        pass: normalizedSmtpAppPassword,
       },
     });
   }
@@ -347,6 +349,7 @@ async function sendMailSafe({ to, subject, text, html }) {
       text,
       html,
     });
+    console.info(`Email sent to ${to} with subject "${subject}".`);
   } catch (error) {
     console.error("Email send failed:", error instanceof Error ? error.message : error);
   }
