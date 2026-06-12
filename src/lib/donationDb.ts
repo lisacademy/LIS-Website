@@ -21,6 +21,15 @@ export interface DonationRecord {
   sheet_synced_at?: string;
 }
 
+export interface DonationMailResult {
+  ok: boolean;
+  to?: string;
+  subject?: string;
+  messageId?: string;
+  error?: string;
+  skipped?: boolean;
+}
+
 function adminHeaders() {
   const token = getAdminToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -36,14 +45,21 @@ export async function fetchDonations(): Promise<DonationRecord[]> {
   }));
 }
 
-export async function updateDonationStatus(id: string, status: DonationStatus, rejectionReason?: string): Promise<DonationRecord> {
-  const response = await apiRequest<{ donation: DonationRecord }>(`/api/admin/donations/${id}/status`, {
+export async function updateDonationStatus(
+  id: string,
+  status: DonationStatus,
+  rejectionReason?: string,
+): Promise<{ donation: DonationRecord; mail?: DonationMailResult }> {
+  const response = await apiRequest<{ donation: DonationRecord; mail?: DonationMailResult }>(`/api/admin/donations/${id}/status`, {
     method: "PATCH",
     headers: adminHeaders(),
     body: JSON.stringify({ status, rejectionReason }),
   });
   return {
-    ...response.donation,
-    status: response.donation.status || "pending",
+    mail: response.mail,
+    donation: {
+      ...response.donation,
+      status: response.donation.status || "pending",
+    },
   };
 }

@@ -21,7 +21,7 @@ const donationSheetWebhookUrl = String(process.env.DONATION_GOOGLE_SHEET_WEBHOOK
 const donationSheetWebhookSecret = String(process.env.DONATION_GOOGLE_SHEET_WEBHOOK_SECRET || "").trim();
 const smtpUser = String(process.env.SMTP_USER || "lisacademyorganisation@gmail.com").trim();
 const smtpAppPassword = String(process.env.SMTP_APP_PASSWORD || "").trim();
-const normalizedSmtpAppPassword = smtpAppPassword.replace(/\s+/g, "");
+const normalizedSmtpAppPassword = smtpAppPassword.replace(/^['"]|['"]$/g, "").replace(/[^a-zA-Z0-9]/g, "");
 const mailFrom = String(process.env.MAIL_FROM || `LIS Academy <${smtpUser}>`).trim();
 const donationAdminEmail = String(process.env.DONATION_ADMIN_EMAIL || smtpUser).trim();
 let databaseReady = false;
@@ -337,21 +337,25 @@ function donationSummaryLines(donation) {
 async function sendMailSafe({ to, subject, text, html }) {
   const transporter = getMailTransporter();
   if (!transporter || !to) {
-    console.warn("Email not sent because SMTP_USER/SMTP_APP_PASSWORD or recipient is missing.");
-    return;
+    const error = "Email not sent because SMTP_USER/SMTP_APP_PASSWORD or recipient is missing.";
+    console.warn(error);
+    return { ok: false, to, subject, error };
   }
 
   try {
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: mailFrom,
       to,
       subject,
       text,
       html,
     });
-    console.info(`Email sent to ${to} with subject "${subject}".`);
+    console.info(`Email sent to ${to} with subject "${subject}". messageId=${info.messageId || "unknown"}`);
+    return { ok: true, to, subject, messageId: info.messageId || undefined };
   } catch (error) {
-    console.error("Email send failed:", error instanceof Error ? error.message : error);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Email send failed:", message);
+    return { ok: false, to, subject, error: message };
   }
 }
 
@@ -371,7 +375,7 @@ async function notifyDonationSubmitted(donation) {
   const detailsText = donationDetailsText(donation);
   const detailsHtml = donationDetailsHtml(donation);
 
-  await Promise.all([
+  return Promise.all([
     sendMailSafe({
       to: donationAdminEmail,
       subject: `New donation confirmation submitted - ${donation.name}`,
@@ -389,7 +393,7 @@ async function notifyDonationSubmitted(donation) {
 
 async function notifyDonationReviewed(donation) {
   if (donation.status === "approved") {
-    await sendMailSafe({
+    return sendMailSafe({
       to: donation.email,
       subject: "LIS Academy donation approved",
       text: `Dear ${donation.name},\n\nYour donation confirmation has been approved. Thank you for supporting LIS Academy.\n\n${donationDetailsText(donation)}\n\nRegards,\nLIS Academy`,
@@ -399,13 +403,15 @@ async function notifyDonationReviewed(donation) {
 
   if (donation.status === "rejected") {
     const reason = donation.rejection_reason || "The submitted donation details could not be verified.";
-    await sendMailSafe({
+    return sendMailSafe({
       to: donation.email,
       subject: "LIS Academy donation confirmation rejected",
       text: `Dear ${donation.name},\n\nYour donation confirmation was rejected for the following reason:\n${reason}\n\n${donationDetailsText(donation)}\n\nRegards,\nLIS Academy`,
       html: `<p>Dear ${escapeHtml(donation.name)},</p><p>Your donation confirmation was rejected for the following reason:</p><p style="padding:12px;background:#fee2e2;color:#991b1b">${escapeHtml(reason)}</p><table>${donationDetailsHtml(donation)}</table><p>Regards,<br/>LIS Academy</p>`,
     });
   }
+
+  return { ok: true, skipped: true };
 }
 
 function validateRegistration(body) {
@@ -1049,8 +1055,8 @@ app.patch("/api/admin/donations/:id/status", requireAdmin, async (req, res) => {
     }
 
     const normalized = normalizeDonation(rows[0]);
-    await notifyDonationReviewed(normalized);
-    res.json({ donation: normalized });
+    const mail = await notifyDonationReviewed(normalized);
+    res.json({ donation: normalized, mail });
   } catch {
     res.status(500).json({ error: "Failed to update donation status." });
   }

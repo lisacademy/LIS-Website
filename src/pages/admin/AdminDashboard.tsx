@@ -521,12 +521,14 @@ function DonationsTab() {
   const [donations, setDonations] = useState<DonationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [filter, setFilter] = useState<"all" | DonationStatus>("all");
   const [busyIds, setBusyIds] = useState<string[]>([]);
 
   const load = () => {
     setLoading(true);
     setError("");
+    setMessage("");
     fetchDonations()
       .then(setDonations)
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Failed to load donations."))
@@ -573,12 +575,19 @@ function DonationsTab() {
       : undefined;
     if (status === "rejected" && !rejectionReason) return;
 
+    setError("");
+    setMessage("");
     const previous = donations;
     setDonations((current) => current.map((donation) => donation.id === id ? { ...donation, status, rejection_reason: rejectionReason } : donation));
     setDonationBusy(id, true);
     try {
       const saved = await updateDonationStatus(id, status, rejectionReason);
-      setDonations((current) => current.map((donation) => donation.id === id ? saved : donation));
+      setDonations((current) => current.map((donation) => donation.id === id ? saved.donation : donation));
+      if (saved.mail && !saved.mail.ok) {
+        setError(`Donation ${status}, but email was not sent: ${saved.mail.error || "Unknown mail error."}`);
+      } else {
+        setMessage(`Donation ${status}. Email sent to ${saved.donation.email}.`);
+      }
     } catch (statusError) {
       setDonations(previous);
       alert(statusError instanceof Error ? statusError.message : "Failed to update donation status.");
@@ -632,6 +641,11 @@ function DonationsTab() {
       {error && (
         <p className="mb-4 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300">
           {error}
+        </p>
+      )}
+      {message && (
+        <p className="mb-4 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-300">
+          {message}
         </p>
       )}
 
