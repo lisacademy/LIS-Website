@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Settings, LogOut, Globe,
   Phone, Mail, MapPin, Youtube, Facebook, Twitter,
   Linkedin, Instagram, Save, ChevronRight, Menu, X,
-  CalendarDays, Plus, Trash2, Edit2, FileText, Images, ReceiptText, CheckCircle2, XCircle, type LucideIcon
+  CalendarDays, Plus, Trash2, Edit2, FileText, Images, ReceiptText, CheckCircle2, XCircle, Video, type LucideIcon
 } from "lucide-react";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { getDefaultSection, getSection, setSection } from "@/lib/contentDb";
@@ -1300,7 +1300,7 @@ function CarouselTab() {
   const addSlide = () => {
     setSlides(current => [
       ...current,
-      { id: crypto.randomUUID(), image_url: "", title: "", sort_order: current.length * 10 + 10 },
+      { id: crypto.randomUUID(), media_type: "image", image_url: "", video_url: "", title: "", sort_order: current.length * 10 + 10 },
     ]);
   };
 
@@ -1313,7 +1313,7 @@ function CarouselTab() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-white">Hero Carousel</h1>
-          <p className="mt-2 text-sm text-white/40">Add image links and control sequencing with sort order. Lower numbers appear first.</p>
+          <p className="mt-2 text-sm text-white/40">Add image or video slides and control sequencing with sort order. Lower numbers appear first. Videos play through, then advance to the next slide.</p>
         </div>
         <button
           onClick={addSlide}
@@ -1327,13 +1327,44 @@ function CarouselTab() {
         <div className="space-y-4">
           {slides.length === 0 && <p className="text-white/40 text-center py-12">No admin carousel slides yet. The homepage will use event images until you add slides here.</p>}
           {slides.map(slide => (
-            <Section key={slide.id} title={slide.title || "Carousel Slide"}>
+            <Section key={slide.id} title={slide.title || (slide.media_type === "video" ? "Video Slide" : "Carousel Slide")}>
               <div className="grid gap-4 md:grid-cols-[140px,1fr] md:items-start">
-                <div className="h-24 overflow-hidden rounded-xl bg-white/5">
-                  {slide.image_url ? <img src={slide.image_url} alt="" className="h-full w-full object-cover" /> : null}
+                <div className="flex h-24 items-center justify-center overflow-hidden rounded-xl bg-white/5">
+                  {slide.media_type === "video" ? (
+                    slide.video_url
+                      ? <video src={slide.video_url} poster={slide.image_url || undefined} muted playsInline className="h-full w-full object-cover" />
+                      : <Video size={22} className="text-white/30" />
+                  ) : (
+                    slide.image_url ? <img src={slide.image_url} alt="" className="h-full w-full object-cover" /> : null
+                  )}
                 </div>
                 <div className="space-y-4">
-                  <Field label="Image Link" value={slide.image_url} onChange={v => updateSlide(slide.id, { image_url: v })} />
+                  <div>
+                    <label className="mb-1.5 block text-xs uppercase tracking-wider text-white/40">Slide Type</label>
+                    <div className="inline-flex overflow-hidden rounded-lg border border-white/10">
+                      {(["image", "video"] as const).map(type => (
+                        <button
+                          key={type}
+                          onClick={() => updateSlide(slide.id, { media_type: type })}
+                          className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold capitalize transition-all"
+                          style={slide.media_type === type
+                            ? { background: "#c9a84c", color: "#0d1b3e" }
+                            : { background: "transparent", color: "rgba(255,255,255,0.5)" }}
+                        >
+                          {type === "video" ? <Video size={13} /> : <Images size={13} />}
+                          {type}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {slide.media_type === "video" ? (
+                    <>
+                      <Field label="Video Link (MP4 / WebM)" value={slide.video_url} onChange={v => updateSlide(slide.id, { video_url: v })} />
+                      <Field label="Poster Image (optional — shown while the video loads)" value={slide.image_url} onChange={v => updateSlide(slide.id, { image_url: v })} />
+                    </>
+                  ) : (
+                    <Field label="Image Link" value={slide.image_url} onChange={v => updateSlide(slide.id, { image_url: v })} />
+                  )}
                   <div className="grid gap-4 md:grid-cols-2">
                     <Field label="Title / Label" value={slide.title} onChange={v => updateSlide(slide.id, { title: v })} />
                     <Field label="Sort Order" value={String(slide.sort_order)} onChange={v => updateSlide(slide.id, { sort_order: Number(v || 0) })} />
