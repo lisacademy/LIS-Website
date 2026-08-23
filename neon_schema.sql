@@ -88,14 +88,13 @@ WHERE a.ctid < b.ctid
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_events_unique_identity ON events (title, event_date, location);
 
-<<<<<<< HEAD
 UPDATE events
 SET event_date = '15-17 October 2026',
     updated_at = NOW()
 WHERE title = '5th LISACON 2024 International Conference on Intelligent Libraries'
   AND location = 'Presidency University, Bengaluru'
   AND event_date IN ('2024-10-17', 'November 7-9, 2024');
-=======
+
 CREATE TABLE IF NOT EXISTS donations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
@@ -114,7 +113,6 @@ CREATE TABLE IF NOT EXISTS donations (
 
 CREATE INDEX IF NOT EXISTS idx_donations_created_at ON donations (created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_donations_transaction_id ON donations (transaction_id);
->>>>>>> 35b1c51b5355b3b10fde3a063ffe58ef577e8776
 
 CREATE TABLE IF NOT EXISTS site_content (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
