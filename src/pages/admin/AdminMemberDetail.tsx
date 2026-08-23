@@ -111,15 +111,31 @@ export default function AdminMemberDetail() {
     }
   };
 
+  const requestStatusReason = (status: "approved" | "rejected", label: string) => {
+    const reason = prompt(`Enter the reason for ${status === "approved" ? "approving" : "rejecting"} ${label}:`);
+    if (reason === null) return null;
+    const trimmed = reason.trim();
+    if (!trimmed) {
+      alert("A reason is required before sending the email notification.");
+      return null;
+    }
+    return trimmed;
+  };
+
   const handleApprove = async () => {
     if (!member) return;
+    const reason = requestStatusReason("approved", "this membership application");
+    if (!reason) return;
     setWorking(true);
     try {
       const latestMember = (draftDirty || placementDirty) ? await saveDraftValues() : member;
       if (latestMember && placementDirty) {
         await updateMemberCertificateEditorState(latestMember.id, editorState);
       }
-      await updateMemberStatus(latestMember?.id || member.id, "approved");
+      const saved = await updateMemberStatus(latestMember?.id || member.id, "approved", reason);
+      if (saved.email_error) {
+        alert(`Status updated, but the email could not be sent: ${saved.email_error}`);
+      }
       await load();
     } finally {
       setWorking(false);
@@ -128,18 +144,31 @@ export default function AdminMemberDetail() {
 
   const handleReject = async () => {
     if (!member) return;
+    const reason = requestStatusReason("rejected", "this membership application");
+    if (!reason) return;
     setWorking(true);
-    await updateMemberStatus(member.id, "rejected");
-    await load();
-    setWorking(false);
+    try {
+      const saved = await updateMemberStatus(member.id, "rejected", reason);
+      if (saved.email_error) {
+        alert(`Status updated, but the email could not be sent: ${saved.email_error}`);
+      }
+      await load();
+    } finally {
+      setWorking(false);
+    }
   };
 
   const handleVolunteerStatus = async (status: "approved" | "rejected") => {
     if (!member) return;
+    const reason = requestStatusReason(status, "this volunteer application");
+    if (!reason) return;
     setWorking(true);
     try {
-      const saved = await updateVolunteerStatus(member.id, status);
-      setMember(saved);
+      const saved = await updateVolunteerStatus(member.id, status, reason);
+      setMember(saved.member);
+      if (saved.email_error) {
+        alert(`Volunteer status updated, but the email could not be sent: ${saved.email_error}`);
+      }
       setVolunteerCertUrl(null);
     } finally {
       setWorking(false);

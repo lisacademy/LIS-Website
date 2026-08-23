@@ -220,12 +220,29 @@ function MembersTab() {
     });
   };
 
+  const requestStatusReason = (status: "approved" | "rejected", label: string) => {
+    const reason = prompt(`Enter the reason for ${status === "approved" ? "approving" : "rejecting"} ${label}:`);
+    if (reason === null) return null;
+    const trimmed = reason.trim();
+    if (!trimmed) {
+      alert("A reason is required before sending the email notification.");
+      return null;
+    }
+    return trimmed;
+  };
+
   const handleStatus = async (id: string, status: "approved" | "rejected") => {
+    const reason = requestStatusReason(status, "this membership application");
+    if (!reason) return;
     const previous = members;
     setMembers((current) => current.map((member) => member.id === id ? { ...member, status } : member));
     setMemberBusy(id, true);
     try {
-      await updateMemberStatus(id, status);
+      const saved = await updateMemberStatus(id, status, reason);
+      setMembers((current) => current.map((member) => member.id === id ? saved.member : member));
+      if (saved.email_error) {
+        alert(`Status updated, but the email could not be sent: ${saved.email_error}`);
+      }
     } catch (error) {
       setMembers(previous);
       alert(error instanceof Error ? error.message : "Failed to update member status.");
@@ -235,12 +252,17 @@ function MembersTab() {
   };
 
   const handleVolunteerStatus = async (id: string, status: "approved" | "rejected") => {
+    const reason = requestStatusReason(status, "this volunteer application");
+    if (!reason) return;
     const previous = members;
     setMembers((current) => current.map((member) => member.id === id ? { ...member, volunteer_status: status } : member));
     setMemberBusy(id, true);
     try {
-      const saved = await updateVolunteerStatus(id, status);
-      setMembers((current) => current.map((member) => member.id === id ? saved : member));
+      const saved = await updateVolunteerStatus(id, status, reason);
+      setMembers((current) => current.map((member) => member.id === id ? saved.member : member));
+      if (saved.email_error) {
+        alert(`Volunteer status updated, but the email could not be sent: ${saved.email_error}`);
+      }
     } catch (error) {
       setMembers(previous);
       alert(error instanceof Error ? error.message : "Failed to update volunteer status.");
@@ -268,13 +290,19 @@ function MembersTab() {
   const handleApproveAllPending = async () => {
     if (pendingMembers.length === 0) return;
     if (!confirm(`Approve all ${pendingMembers.length} pending members?`)) return;
+    const reason = requestStatusReason("approved", "all pending membership applications");
+    if (!reason) return;
     const pendingIds = pendingMembers.map((member) => member.id);
     const previous = members;
     setBulkWorking(true);
     setBusyIds((current) => [...new Set([...current, ...pendingIds])]);
     setMembers((current) => current.map((member) => pendingIds.includes(member.id) ? { ...member, status: "approved" } : member));
     try {
-      await Promise.all(pendingIds.map((id) => updateMemberStatus(id, "approved")));
+      const saved = await Promise.all(pendingIds.map((id) => updateMemberStatus(id, "approved", reason)));
+      const emailErrors = saved.filter((result) => result.email_error).length;
+      if (emailErrors > 0) {
+        alert(`${emailErrors} member status update(s) succeeded, but their email notification could not be sent.`);
+      }
     } catch (error) {
       setMembers(previous);
       alert(error instanceof Error ? error.message : "Failed to approve all pending members.");

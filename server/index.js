@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import express from "express";
 import bcrypt from "bcryptjs";
 import path from "path";
+import tls from "tls";
 import { fileURLToPath } from "url";
 import { sql } from "./db.js";
 import { requireAuth, requireAdmin, signToken } from "./auth.js";
@@ -17,6 +18,9 @@ const adminUsername = String(process.env.ADMIN_USERNAME || "").trim();
 const adminPassword = String(process.env.ADMIN_PASSWORD || "");
 const donationSheetWebhookUrl = String(process.env.DONATION_GOOGLE_SHEET_WEBHOOK_URL || "").trim();
 const donationSheetWebhookSecret = String(process.env.DONATION_GOOGLE_SHEET_WEBHOOK_SECRET || "").trim();
+const notificationEmailUser = String(process.env.NOTIFICATION_EMAIL_USER || "").trim();
+const notificationEmailAppPassword = String(process.env.NOTIFICATION_EMAIL_APP_PASSWORD || "").replace(/\s+/g, "");
+const notificationEmailFromName = String(process.env.NOTIFICATION_EMAIL_FROM_NAME || "LIS Academy").trim();
 let databaseReady = false;
 let databaseStartupError = null;
 
@@ -249,6 +253,299 @@ function assertRequired(value, label) {
   if (!String(value || "").trim()) {
     throw new Error(`${label} is required.`);
   }
+}
+
+function sanitizeEmailReason(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").slice(0, 1000);
+}
+
+function smtpRead(socket) {
+  return new Promise((resolve, reject) => {
+    let buffer = "";
+    const onData = (chunk) => {
+      buffer += chunk.toString("utf8");
+      const lines = buffer.split(/\r?\n/).filter(Boolean);
+      const lastLine = lines[lines.length - 1] || "";
+      if (/^\d{3} /.test(lastLine)) {
+        cleanup();
+        resolve({ code: Number(lastLine.slice(0, 3)), message: buffer });
+      }
+    };
+    const onError = (error) => {
+      cleanup();
+      reject(error);
+    };
+    const cleanup = () => {
+      socket.off("data", onData);
+      socket.off("error", onError);
+    };
+    socket.on("data", onData);
+    socket.on("error", onError);
+  });
+}
+
+async function smtpCommand(socket, command, expectedCodes) {
+  socket.write(`${command}\r\n`);
+  const response = await smtpRead(socket);
+  if (!expectedCodes.includes(response.code)) {
+    throw new Error(`SMTP command failed with ${response.code}.`);
+  }
+  return response;
+}
+
+function encodeEmailHeader(value) {
+  const text = String(value || "");
+  return /^[\x00-\x7F]*$/.test(text)
+    ? text
+    : `=?UTF-8?B?${Buffer.from(text, "utf8").toString("base64")}?=`;
+}
+
+function wrapBase64(value) {
+  return String(value || "").replace(/(.{1,76})/g, "$1\r\n").trim();
+}
+
+function encodeMimeText(value) {
+  return wrapBase64(Buffer.from(String(value || ""), "utf8").toString("base64"));
+}
+
+function dotStuff(value) {
+  return String(value || "").replace(/\r?\n/g, "\r\n").replace(/^\./gm, "..");
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function dataUrlToAttachment(dataUrl, filename) {
+  const match = String(dataUrl || "").match(/^data:([^;,]+);base64,(.+)$/);
+  if (!match) return null;
+
+  return {
+    filename,
+    contentType: match[1],
+    contentBase64: match[2].replace(/\s+/g, ""),
+  };
+}
+
+function buildHtmlEmail({ title, intro, referenceLabel, referenceValue, reason, action }) {
+  return `<!doctype html>
+<html>
+  <body style="margin:0;background:#f4f5f7;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
+      <tr>
+        <td style="background:#111827;color:#ffffff;padding:22px 26px;">
+          <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#c9a84c;">LIS Academy</div>
+          <h1 style="margin:8px 0 0;font-size:22px;line-height:1.3;font-weight:700;">${escapeHtml(title)}</h1>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:26px;">
+          <p style="margin:0 0 16px;font-size:15px;line-height:1.65;">${escapeHtml(intro)}</p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:20px 0;border-collapse:collapse;">
+            <tr>
+              <td style="padding:12px 14px;background:#f9fafb;border:1px solid #e5e7eb;font-size:13px;color:#6b7280;width:34%;">${escapeHtml(referenceLabel)}</td>
+              <td style="padding:12px 14px;background:#ffffff;border:1px solid #e5e7eb;font-size:14px;font-weight:700;color:#111827;">${escapeHtml(referenceValue)}</td>
+            </tr>
+            <tr>
+              <td style="padding:12px 14px;background:#f9fafb;border:1px solid #e5e7eb;font-size:13px;color:#6b7280;">Reason</td>
+              <td style="padding:12px 14px;background:#ffffff;border:1px solid #e5e7eb;font-size:14px;color:#111827;">${escapeHtml(reason)}</td>
+            </tr>
+          </table>
+          <p style="margin:0 0 20px;font-size:14px;line-height:1.65;color:#374151;">${escapeHtml(action)}</p>
+          <p style="margin:0;font-size:14px;line-height:1.6;color:#374151;">Regards,<br><strong>LIS Academy</strong></p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+async function sendSmtpEmail({ to, subject, text, html, attachments = [] }) {
+  if (!notificationEmailUser || !notificationEmailAppPassword) {
+    throw new Error("Notification email is not configured.");
+  }
+
+  const socket = tls.connect({
+    host: "smtp.gmail.com",
+    port: 465,
+    servername: "smtp.gmail.com",
+  });
+  socket.setTimeout(20000, () => {
+    socket.destroy(new Error("SMTP connection timed out."));
+  });
+  const greeting = smtpRead(socket);
+
+  try {
+    await new Promise((resolve, reject) => {
+      socket.once("secureConnect", resolve);
+      socket.once("error", reject);
+    });
+    await greeting;
+    await smtpCommand(socket, `EHLO ${process.env.SMTP_EHLO_DOMAIN || "lisacademy.org"}`, [250]);
+    await smtpCommand(
+      socket,
+      `AUTH PLAIN ${Buffer.from(`\u0000${notificationEmailUser}\u0000${notificationEmailAppPassword}`).toString("base64")}`,
+      [235],
+    );
+    await smtpCommand(socket, `MAIL FROM:<${notificationEmailUser}>`, [250]);
+    await smtpCommand(socket, `RCPT TO:<${to}>`, [250, 251]);
+    await smtpCommand(socket, "DATA", [354]);
+
+    const mixedBoundary = `mixed_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const alternativeBoundary = `alt_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const safeAttachments = attachments.filter(Boolean);
+    const messageParts = [
+      `From: ${encodeEmailHeader(notificationEmailFromName)} <${notificationEmailUser}>`,
+      `To: <${to}>`,
+      `Subject: ${encodeEmailHeader(subject)}`,
+      "MIME-Version: 1.0",
+      `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
+      "",
+      `--${mixedBoundary}`,
+      `Content-Type: multipart/alternative; boundary="${alternativeBoundary}"`,
+      "",
+      `--${alternativeBoundary}`,
+      "Content-Type: text/plain; charset=UTF-8",
+      "Content-Transfer-Encoding: base64",
+      "",
+      encodeMimeText(text),
+    ];
+
+    if (html) {
+      messageParts.push(
+        `--${alternativeBoundary}`,
+        "Content-Type: text/html; charset=UTF-8",
+        "Content-Transfer-Encoding: base64",
+        "",
+        encodeMimeText(html),
+      );
+    }
+
+    messageParts.push(`--${alternativeBoundary}--`);
+
+    for (const attachment of safeAttachments) {
+      messageParts.push(
+        `--${mixedBoundary}`,
+        `Content-Type: ${attachment.contentType}; name="${attachment.filename}"`,
+        "Content-Transfer-Encoding: base64",
+        `Content-Disposition: attachment; filename="${attachment.filename}"`,
+        "",
+        wrapBase64(attachment.contentBase64),
+      );
+    }
+
+    messageParts.push(`--${mixedBoundary}--`);
+    const message = messageParts.join("\r\n");
+
+    socket.write(`${dotStuff(message)}\r\n.\r\n`);
+    const dataResponse = await smtpRead(socket);
+    if (dataResponse.code !== 250) {
+      throw new Error(`SMTP DATA failed with ${dataResponse.code}.`);
+    }
+    await smtpCommand(socket, "QUIT", [221]);
+  } finally {
+    socket.end();
+  }
+}
+
+async function notifyMemberStatus(member, status, reason) {
+  const cleanReason = sanitizeEmailReason(reason);
+  if (!member?.email) {
+    throw new Error("Member email address is missing.");
+  }
+
+  const approved = status === "approved";
+  const subject = approved
+    ? "Your LIS Academy membership application is approved"
+    : "Your LIS Academy membership application is rejected";
+  const memberCode = approved
+    ? member.membership_id
+    : (member.application_id || member.membership_id);
+  const statusLabel = approved ? "approved" : "rejected";
+  const reasonText = cleanReason || "No reason was provided.";
+  const intro = `Your LIS Academy membership application has been ${statusLabel}.`;
+  const certificateAttachment = approved
+    ? dataUrlToAttachment(
+        member.certificate_data_url || member.certificate_draft_data_url,
+        `lis-academy-certificate-${String(memberCode || "member").replace(/[^a-z0-9_-]+/gi, "-")}.png`,
+      )
+    : null;
+  const action = approved
+    ? certificateAttachment
+      ? "Your certificate image is attached to this email. You can also log in to your member dashboard to view your membership details and certificate options."
+      : "You can log in to your member dashboard to view your membership details and certificate options."
+    : "You may contact LIS Academy if you need clarification or want to submit corrected details.";
+  const text = [
+    `Dear ${member.name || "Member"},`,
+    "",
+    intro,
+    `Reference ID: ${memberCode}`,
+    "",
+    `Reason: ${reasonText}`,
+    "",
+    action,
+    "",
+    "Regards,",
+    "LIS Academy",
+  ].join("\n");
+  const html = buildHtmlEmail({
+    title: approved ? "Membership Approved" : "Membership Rejected",
+    intro,
+    referenceLabel: approved ? "Membership ID" : "Application ID",
+    referenceValue: memberCode,
+    reason: reasonText,
+    action,
+  });
+
+  await sendSmtpEmail({ to: member.email, subject, text, html, attachments: [certificateAttachment] });
+}
+
+async function notifyVolunteerStatus(member, status, reason) {
+  const cleanReason = sanitizeEmailReason(reason);
+  if (!member?.email) {
+    throw new Error("Member email address is missing.");
+  }
+
+  const approved = status === "approved";
+  const subject = approved
+    ? "Your LIS Academy volunteer application is approved"
+    : "Your LIS Academy volunteer application is rejected";
+  const statusLabel = approved ? "approved" : "rejected";
+  const reasonText = cleanReason || "No reason was provided.";
+  const intro = `Your LIS Academy volunteer application has been ${statusLabel}.`;
+  const action = approved
+    ? "You can log in to your dashboard to view your volunteer details and certificate options."
+    : "You may contact LIS Academy if you need clarification or want to submit corrected details.";
+  const volunteerLine = approved && member.volunteer_number
+    ? [`Volunteer Number: ${member.volunteer_number}`, ""]
+    : [];
+  const text = [
+    `Dear ${member.name || "Member"},`,
+    "",
+    intro,
+    ...volunteerLine,
+    `Reason: ${reasonText}`,
+    "",
+    action,
+    "",
+    "Regards,",
+    "LIS Academy",
+  ].join("\n");
+  const html = buildHtmlEmail({
+    title: approved ? "Volunteer Application Approved" : "Volunteer Application Rejected",
+    intro,
+    referenceLabel: approved ? "Volunteer Number" : "Membership ID",
+    referenceValue: approved && member.volunteer_number ? String(member.volunteer_number) : (member.membership_id || member.application_id || "N/A"),
+    reason: reasonText,
+    action,
+  });
+
+  await sendSmtpEmail({ to: member.email, subject, text, html });
 }
 
 function validateDonation(body) {
@@ -1195,7 +1492,18 @@ app.patch("/api/admin/members/:id/status", requireAdmin, async (req, res) => {
       return res.status(404).json({ error: "Member not found." });
     }
 
-    res.json({ member: publicMember(rows[0]) });
+    const member = publicMember(rows[0]);
+    let emailError = null;
+    if (status === "approved" || status === "rejected") {
+      try {
+        await notifyMemberStatus(member, status, req.body.reason);
+      } catch (error) {
+        emailError = error instanceof Error ? error.message : "Failed to send notification email.";
+        console.error("Member status notification failed:", emailError);
+      }
+    }
+
+    res.json({ member, email_error: emailError });
   } catch {
     res.status(500).json({ error: "Failed to update member status." });
   }
@@ -1240,7 +1548,18 @@ app.patch("/api/admin/members/:id/volunteer-status", requireAdmin, async (req, r
       return res.status(404).json({ error: "Member not found." });
     }
 
-    res.json({ member: publicMember(rows[0]) });
+    const member = publicMember(rows[0]);
+    let emailError = null;
+    if (status === "approved" || status === "rejected") {
+      try {
+        await notifyVolunteerStatus(member, status, req.body.reason);
+      } catch (error) {
+        emailError = error instanceof Error ? error.message : "Failed to send notification email.";
+        console.error("Volunteer status notification failed:", emailError);
+      }
+    }
+
+    res.json({ member, email_error: emailError });
   } catch {
     res.status(500).json({ error: "Failed to update volunteer status." });
   }

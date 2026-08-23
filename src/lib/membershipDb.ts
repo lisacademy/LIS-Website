@@ -123,21 +123,21 @@ export async function getMemberByMembershipId(membershipId: string): Promise<Mem
   return null;
 }
 
-export async function updateMemberStatus(id: string, status: MemberStatus): Promise<void> {
-  await apiRequest<{ member: Member }>(`/api/admin/members/${id}/status`, {
+export async function updateMemberStatus(id: string, status: MemberStatus, reason = ""): Promise<{ member: Member; email_error?: string | null }> {
+  return apiRequest<{ member: Member; email_error?: string | null }>(`/api/admin/members/${id}/status`, {
     method: "PATCH",
     headers: adminHeaders(),
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, reason }),
   });
 }
 
-export async function updateVolunteerStatus(id: string, status: Exclude<VolunteerStatus, "not_applied">): Promise<Member> {
-  const response = await apiRequest<{ member: Member }>(`/api/admin/members/${id}/volunteer-status`, {
+export async function updateVolunteerStatus(id: string, status: Exclude<VolunteerStatus, "not_applied">, reason = ""): Promise<{ member: Member; email_error?: string | null }> {
+  const response = await apiRequest<{ member: Member; email_error?: string | null }>(`/api/admin/members/${id}/volunteer-status`, {
     method: "PATCH",
     headers: adminHeaders(),
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, reason }),
   });
-  return response.member;
+  return response;
 }
 
 export async function updateMemberCertificateEditorState(
