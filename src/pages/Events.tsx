@@ -51,7 +51,12 @@ function parseEventDate(value: string) {
   if (!trimmed) return null;
 
   const isoDate = trimmed.match(/\d{4}-\d{2}-\d{2}/)?.[0];
-  const candidate = isoDate || trimmed;
+  const dayRangeDate = trimmed.match(/^(\d{1,2})\s*-\s*\d{1,2}\s+([A-Za-z]+)\s+(\d{4})$/);
+  const monthRangeDate = trimmed.match(/^([A-Za-z]+)\s+(\d{1,2})\s*-\s*\d{1,2},?\s+(\d{4})$/);
+  const candidate = isoDate
+    || (dayRangeDate ? `${dayRangeDate[2]} ${dayRangeDate[1]}, ${dayRangeDate[3]}` : "")
+    || (monthRangeDate ? `${monthRangeDate[1]} ${monthRangeDate[2]}, ${monthRangeDate[3]}` : "")
+    || trimmed;
   const parsed = new Date(candidate);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
@@ -236,7 +241,6 @@ export default function Events() {
 
                   <div className="text-center px-2 md:px-4">
                     <div className="text-[clamp(22px,2.8vw,46px)] font-medium uppercase tracking-wide text-[#c04a10]">{event.title}</div>
-                    <div className="mt-4 text-[clamp(34px,4vw,64px)] leading-none uppercase text-[#1f66d1]">{event.type}</div>
                     <div className="mt-6 text-[clamp(20px,2.6vw,40px)] uppercase text-[#111827]">{event.date}</div>
                     <div className="mt-3 flex items-center justify-center gap-2 text-slate-600 text-base md:text-lg">
                       <MapPin size={18} />

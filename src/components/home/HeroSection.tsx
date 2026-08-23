@@ -1,8 +1,10 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchEvents } from "@/lib/eventsDb";
 import { fetchCarouselSlides } from "@/lib/carouselDb";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+
+type HeroMedia = { type: "image" | "video"; src: string; poster?: string };
 
 const defaultEventImages = [
   "https://images.unsplash.com/photo-1540575467063-178a50c2df87?q=80&w=2000&auto=format&fit=crop",
@@ -12,46 +14,81 @@ const defaultEventImages = [
   "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?q=80&w=2000&auto=format&fit=crop",
 ];
 
+const defaultMedia: HeroMedia[] = defaultEventImages.map((src) => ({ type: "image", src }));
+
+// Image slides hold for this long before advancing; video slides advance when they end.
+const IMAGE_DURATION_MS = 5000;
+
 export default function HeroSection() {
-  const [carouselImages, setCarouselImages] = useState<string[]>(defaultEventImages);
+  const [media, setMedia] = useState<HeroMedia[]>(defaultMedia);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [paused, setPaused] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Callback ref: only track the mounted (entering) video. Ignoring the null
+  // call means an exiting slide unmounting during a crossfade won't clobber the
+  // reference to the video that's now active.
+  const setVideoRef = (node: HTMLVideoElement | null) => {
+    if (node) videoRef.current = node;
+  };
 
   useEffect(() => {
     fetchCarouselSlides().then((slides) => {
       if (slides.length > 0) {
-        setCarouselImages(slides.map((slide) => slide.image_url));
+        setMedia(
+          slides.map((slide) =>
+            slide.media_type === "video"
+              ? { type: "video", src: slide.video_url, poster: slide.image_url || undefined }
+              : { type: "image", src: slide.image_url },
+          ),
+        );
         return;
       }
 
       return fetchEvents().then((events) => {
-      const images = events
-        .map((event) => event.image_url)
-        .filter((url): url is string => Boolean(url));
-      if (images.length > 0) {
-        const finalImages = [...images].slice(0, 5);
-        while (finalImages.length < 5) {
-          finalImages.push(defaultEventImages[finalImages.length % defaultEventImages.length]);
+        const images = events
+          .map((event) => event.image_url)
+          .filter((url): url is string => Boolean(url));
+        if (images.length > 0) {
+          const finalImages = [...images].slice(0, 5);
+          while (finalImages.length < 5) {
+            finalImages.push(defaultEventImages[finalImages.length % defaultEventImages.length]);
+          }
+          setMedia(finalImages.map((src) => ({ type: "image", src })));
         }
-        setCarouselImages(finalImages);
-      }
       });
     }).catch(console.error);
   }, []);
 
+  // Keep the index in range if the media list changes length.
   useEffect(() => {
-    if (paused) return;
-    const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % carouselImages.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [carouselImages.length, paused]);
+    setCurrentIndex((prev) => (prev >= media.length ? 0 : prev));
+  }, [media.length]);
 
   const navigate = (delta: number) => {
     setCurrentIndex(
-      (prev) => (prev + delta + carouselImages.length) % carouselImages.length,
+      (prev) => (prev + delta + media.length) % media.length,
     );
   };
+
+  const current = media[currentIndex];
+  const single = media.length === 1;
+
+  // Auto-advance for image slides only; videos advance via their onEnded handler.
+  useEffect(() => {
+    if (paused || !current || current.type !== "image") return;
+    const timeout = setTimeout(() => navigate(1), IMAGE_DURATION_MS);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex, paused, current, media.length]);
+
+  // Pause/resume the active video when the visitor hovers the hero.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || current?.type !== "video") return;
+    if (paused) video.pause();
+    else void video.play().catch(() => {});
+  }, [paused, current]);
 
   return (
     <section
@@ -59,8 +96,9 @@ export default function HeroSection() {
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
-      {/* Fade image layer */}
-      <AnimatePresence mode="wait">
+      {/* Media crossfade layer — new slide fades in over the old (no gap),
+          and images slowly zoom/pan so the carousel reads like moving footage. */}
+      <AnimatePresence>
         <motion.div
           key={currentIndex}
           initial={{ opacity: 0 }}
@@ -70,11 +108,34 @@ export default function HeroSection() {
           className="absolute inset-0 w-full h-full"
           style={{ zIndex: 0 }}
         >
-          <img
-            src={carouselImages[currentIndex]}
-            alt={`Slide ${currentIndex + 1}`}
-            className="w-full h-full object-cover"
-          />
+          {current?.type === "video" ? (
+            <video
+              ref={setVideoRef}
+              src={current.src}
+              poster={current.poster}
+              autoPlay
+              muted
+              playsInline
+              preload="auto"
+              loop={single}
+              onEnded={() => {
+                if (!single) navigate(1);
+              }}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <motion.img
+              src={current?.src}
+              alt={`Slide ${currentIndex + 1}`}
+              className="w-full h-full object-cover"
+              initial={{ scale: 1.05 }}
+              animate={{ scale: 1.18 }}
+              transition={{ duration: (IMAGE_DURATION_MS + 1600) / 1000, ease: "linear" }}
+              // Alternate the anchor so the slow zoom appears to pan toward a
+              // different corner each slide, adding to the live-camera feel.
+              style={{ transformOrigin: currentIndex % 2 === 0 ? "50% 50%" : "20% 30%" }}
+            />
+          )}
           <div
             className="absolute inset-0"
             style={{
@@ -115,7 +176,7 @@ export default function HeroSection() {
 
       {/* Slide dots */}
       <div className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 md:bottom-10">
-        {carouselImages.map((_, i) => (
+        {media.map((_, i) => (
           <button
             key={i}
             onClick={() => setCurrentIndex(i)}
@@ -135,15 +196,15 @@ export default function HeroSection() {
         ))}
       </div>
 
-      {/* Progress bar */}
-      {!paused && (
+      {/* Progress bar (image slides only — video slides advance on their own end) */}
+      {!paused && current?.type === "image" && (
         <motion.div
           key={`progress-${currentIndex}`}
           className="absolute bottom-0 left-0 h-[3px] z-20"
           style={{ background: "linear-gradient(90deg, #c9a84c, #f0d080)" }}
           initial={{ width: "0%" }}
           animate={{ width: "100%" }}
-          transition={{ duration: 5, ease: "linear" }}
+          transition={{ duration: IMAGE_DURATION_MS / 1000, ease: "linear" }}
         />
       )}
 
