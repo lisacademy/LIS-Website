@@ -1,4 +1,5 @@
 import type { EventItem } from "./eventsDb";
+import { allLisaconPhotos } from "./lisaconPhotos";
 
 export type EventGallerySlug = "lisacon-series" | "tech-vc-conclaves" | "distinguished-lectures" | "other-events";
 
@@ -9,7 +10,8 @@ export interface EventGallery {
   images: string[];
 }
 
-const lisaconImages = [
+/** Previously hosted off the old Wix site; kept so nothing is lost from the gallery. */
+const lisaconHostedImages = [
   "https://static.wixstatic.com/media/4c9702_5ba7b03bf62a4fb6a3dbcd22f9f9931f~mv2.jpeg/v1/fit/w_480,h_680,q_90,enc_avif,quality_auto/4c9702_5ba7b03bf62a4fb6a3dbcd22f9f9931f~mv2.jpeg",
   "https://static.wixstatic.com/media/4c9702_a046653287664b3a815188549da38c40~mv2.jpg/v1/fit/w_1440,h_961,q_90,enc_avif,quality_auto/4c9702_a046653287664b3a815188549da38c40~mv2.jpg",
   "https://static.wixstatic.com/media/4c9702_10facdeb1493473fb43793d66c4b1780~mv2.jpg/v1/fit/w_960,h_637,q_90,enc_avif,quality_auto/4c9702_10facdeb1493473fb43793d66c4b1780~mv2.jpg",
@@ -36,6 +38,13 @@ const lisaconImages = [
   "https://static.wixstatic.com/media/4c9702_56a650f78a3e4c7599b65cd6e08fde9b~mv2.jpg/v1/fit/w_960,h_639,q_90,enc_avif,quality_auto/4c9702_56a650f78a3e4c7599b65cd6e08fde9b~mv2.jpg",
   "https://static.wixstatic.com/media/4c9702_d6dc1614b16141bfbab150a3e3c77d26~mv2.jpg/v1/fit/w_960,h_640,q_90,enc_avif,quality_auto/4c9702_d6dc1614b16141bfbab150a3e3c77d26~mv2.jpg",
   "https://static.wixstatic.com/media/4c9702_785df5f9c2234529ab3c5cd69e78907a~mv2.jpg/v1/fit/w_960,h_639,q_90,enc_avif,quality_auto/4c9702_785df5f9c2234529ab3c5cd69e78907a~mv2.jpg",
+];
+
+// The conference archive leads the gallery -- these are the originals held by
+// the Academy, so they are sharper and load from our own domain.
+const lisaconImages = [
+  ...allLisaconPhotos.map((photo) => photo.src),
+  ...lisaconHostedImages,
 ];
 
 const techVcImages = [

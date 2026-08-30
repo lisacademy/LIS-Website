@@ -5,6 +5,7 @@ import PageHeader from "@/components/PageHeader";
 import { MapPin, Clock, Users, ExternalLink } from "lucide-react";
 import { fetchEvents, type EventItem } from "@/lib/eventsDb";
 import { getEventGalleryPath } from "@/lib/eventGalleries";
+import { getLisaconPhotos, type LisaconPhoto } from "@/lib/lisaconPhotos";
 
 type EventCategory = "all" | "lisacon" | "tech-vc" | "lectures" | "other";
 
@@ -255,6 +256,8 @@ export default function Events() {
                   </div>
                 </div>
 
+                <EventPhotoStrip photos={getLisaconPhotos(event)} />
+
                 {selectedEventId === eventKey(event) && (
                   <motion.div
                     initial={{ opacity: 0, y: 12 }}
@@ -292,6 +295,43 @@ export default function Events() {
         </div>
       </section>
     </PageLayout>
+  );
+}
+
+/**
+ * Thumbnails from the conference archive, shown under an event card. Clicks
+ * open the full-size photograph and are kept from reaching the card, which
+ * would otherwise toggle the agenda panel.
+ */
+function EventPhotoStrip({ photos }: { photos: LisaconPhoto[] }) {
+  if (photos.length === 0) return null;
+
+  return (
+    <div className="mt-5 border-t border-black/10 pt-5">
+      <div className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: "#c04a10" }}>
+        Photos from this conference
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-1">
+        {photos.map((photo) => (
+          <a
+            key={photo.src}
+            href={photo.src}
+            target="_blank"
+            rel="noreferrer"
+            title={photo.caption}
+            onClick={(event) => event.stopPropagation()}
+            className="group shrink-0 overflow-hidden rounded-2xl border border-black/10 bg-white"
+          >
+            <img
+              src={photo.thumb}
+              alt={photo.caption}
+              loading="lazy"
+              className="h-24 w-36 object-cover transition-transform duration-500 group-hover:scale-105 md:h-28 md:w-44"
+            />
+          </a>
+        ))}
+      </div>
+    </div>
   );
 }
 

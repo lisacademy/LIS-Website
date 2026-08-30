@@ -43,3 +43,10 @@ BLUEHOST_DEPLOY_README.txt
 *.njsproj
 *.sln
 *.sw?
+
+# Raw conference photo originals (~164MB of full-resolution camera files).
+# The web-optimised renditions live in public/events/ and are committed.
+/1st LISACON - 2017/
+/2nd LISACON - 2019/
+/3rd LISACON - 2020/
+/4th LISACON - 2020/

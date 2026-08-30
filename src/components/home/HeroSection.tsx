@@ -2,17 +2,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { fetchEvents } from "@/lib/eventsDb";
 import { fetchCarouselSlides } from "@/lib/carouselDb";
+import { lisaconHeroPhotos } from "@/lib/lisaconPhotos";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 type HeroMedia = { type: "image" | "video"; src: string; poster?: string };
 
-const defaultEventImages = [
-  "https://images.unsplash.com/photo-1540575467063-178a50c2df87?q=80&w=2000&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1505373877841-8d25f7d46678?q=80&w=2000&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1558403194-611308249627?q=80&w=2000&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1491975474562-1f4e30bc9468?q=80&w=2000&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?q=80&w=2000&auto=format&fit=crop",
-];
+// Photographs from the LISACON archive, served locally. These replaced the
+// stock imagery the carousel used to fall back to.
+const defaultEventImages = lisaconHeroPhotos;
 
 const defaultMedia: HeroMedia[] = defaultEventImages.map((src) => ({ type: "image", src }));
 
