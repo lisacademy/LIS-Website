@@ -212,7 +212,7 @@ INSERT INTO events (
     'The third LISACON continued the Academy conference series as a professional platform for knowledge sharing, collaboration, and emerging ideas in Library and Information Science.',
     '["LIS Academy", "Invited LIS professionals and researchers"]'::jsonb,
     '["Conference sessions", "Knowledge dissemination", "Professional networking", "Research presentations"]'::jsonb,
-    '/events/lisacon-3/01-conference-poster.jpg',
+    '/events/lisacon-3/01-inaugural-programme.jpg',
     '',
     'https://www.lisacon.org/copy-of-distiguished-lectures',
     'https://www.lisacon.org/copy-of-distiguished-lectures',

@@ -60,14 +60,13 @@ export const lisaconEditions: LisaconEdition[] = [
     // artwork rather than photographs.
     label: "3rd LISACON National Virtual Conference (2020)",
     photos: edition("lisacon-3", [
-      ["01-conference-poster", "Conference poster - Reinventing Excellence in Librarianship"],
-      ["02-inaugural-programme", "Inaugural and valedictory function programme"],
-      ["03-theme-1-digital-age", "Theme 1 - Reinventing Library Services in the Digital Age"],
-      ["04-theme-2-collection-development", "Theme 2 - New Paradigms in Collection Development"],
-      ["05-theme-3-library-technologies", "Theme 3 - Leveraging Library Technologies"],
-      ["06-theme-4-data-metrics-ranking", "Theme 4 - Data, Metrics, and Ranking: Role of Librarians"],
-      ["07-theme-5-research-ethics", "Theme 5 - Role of Libraries in Inculcating Research Ethics"],
-      ["08-theme-6-library-diplomacy", "Theme 6 - Library Diplomacy"],
+      ["01-inaugural-programme", "Inaugural and valedictory function programme"],
+      ["02-theme-1-digital-age", "Theme 1 - Reinventing Library Services in the Digital Age"],
+      ["03-theme-2-collection-development", "Theme 2 - New Paradigms in Collection Development"],
+      ["04-theme-3-library-technologies", "Theme 3 - Leveraging Library Technologies"],
+      ["05-theme-4-data-metrics-ranking", "Theme 4 - Data, Metrics, and Ranking: Role of Librarians"],
+      ["06-theme-5-research-ethics", "Theme 5 - Role of Libraries in Inculcating Research Ethics"],
+      ["07-theme-6-library-diplomacy", "Theme 6 - Library Diplomacy"],
     ]),
   },
   {
@@ -79,6 +78,9 @@ export const lisaconEditions: LisaconEdition[] = [
       ["03-dais", "Dignitaries on the dais"],
       ["04-address", "Address to the delegates"],
       ["05-conference-poster", "Conference poster - Open Scholarship and Libraries"],
+      // Artwork from the 3rd edition, placed here at the Academy's request.
+      // The caption stays accurate to what the poster itself shows.
+      ["06-lisacon-2020-poster", "LISACON 2020 conference poster - Reinventing Excellence in Librarianship"],
     ]),
   },
 ];
