@@ -95,6 +95,7 @@ export default function Events() {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<EventCategory>("all");
   const [loading, setLoading] = useState(true);
+  const [featuredPhotos, setFeaturedPhotos] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchEvents().then((data) => {
@@ -225,20 +226,30 @@ export default function Events() {
             <div className="rounded-[42px] bg-[#f7f3f2] p-8 text-base text-slate-600">No events have been published yet. Use the admin portal to add them.</div>
           ) : filteredEvents.length === 0 ? (
             <div className="rounded-[42px] bg-[#f7f3f2] p-8 text-base text-slate-600">No events found in this category yet.</div>
-          ) : filteredEvents.map((event, i) => (
+          ) : filteredEvents.map((event, i) => {
+            const photos = getLisaconPhotos(event);
+            const featured = photos.find((photo) => photo.src === featuredPhotos[eventKey(event)]) || photos[0];
+            const featuredSrc = featured?.src || event.image_url || "/logo.png";
+            return (
             <FadeIn key={event.id || event.title} delay={i * 0.05}>
               <div
                 className="rounded-[42px] bg-[#f7f3f2] p-4 md:p-6 transition-all hover:scale-[1.01] cursor-pointer"
                 onClick={() => setSelectedEventId(eventKey(event))}
               >
                 <div className="grid gap-6 md:grid-cols-[1.15fr,1fr,300px] md:items-center">
-                  <div className="overflow-hidden rounded-[56px] bg-white shadow-sm">
+                  <a
+                    href={featuredSrc}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="block overflow-hidden rounded-[56px] bg-white shadow-sm"
+                  >
                     <img
-                      src={event.image_url || "/logo.png"}
-                      alt={event.title}
+                      src={featuredSrc}
+                      alt={featured?.caption || event.title}
                       className="h-[220px] w-full object-cover md:h-[360px]"
                     />
-                  </div>
+                  </a>
 
                   <div className="text-center px-2 md:px-4">
                     <div className="text-[clamp(22px,2.8vw,46px)] font-medium uppercase tracking-wide text-[#c04a10]">{event.title}</div>
@@ -256,7 +267,11 @@ export default function Events() {
                   </div>
                 </div>
 
-                <EventPhotoStrip photos={getLisaconPhotos(event)} />
+                <EventPhotoStrip
+                  photos={photos}
+                  selectedSrc={featured?.src}
+                  onSelect={(src) => setFeaturedPhotos((current) => ({ ...current, [eventKey(event)]: src }))}
+                />
 
                 {selectedEventId === eventKey(event) && (
                   <motion.div
@@ -291,7 +306,8 @@ export default function Events() {
                 )}
               </div>
             </FadeIn>
-          ))}
+            );
+          })}
         </div>
       </section>
     </PageLayout>
@@ -299,11 +315,19 @@ export default function Events() {
 }
 
 /**
- * Thumbnails from the conference archive, shown under an event card. Clicks
- * open the full-size photograph and are kept from reaching the card, which
- * would otherwise toggle the agenda panel.
+ * Thumbnails from the conference archive, shown under an event card. A click
+ * shows the photograph in the card's large frame and is kept from reaching the
+ * card, which would otherwise toggle the agenda panel.
  */
-function EventPhotoStrip({ photos }: { photos: LisaconPhoto[] }) {
+function EventPhotoStrip({
+  photos,
+  selectedSrc,
+  onSelect,
+}: {
+  photos: LisaconPhoto[];
+  selectedSrc?: string;
+  onSelect: (src: string) => void;
+}) {
   if (photos.length === 0) return null;
 
   return (
@@ -313,14 +337,18 @@ function EventPhotoStrip({ photos }: { photos: LisaconPhoto[] }) {
       </div>
       <div className="flex gap-3 overflow-x-auto pb-1">
         {photos.map((photo) => (
-          <a
+          <button
             key={photo.src}
-            href={photo.src}
-            target="_blank"
-            rel="noreferrer"
+            type="button"
             title={photo.caption}
-            onClick={(event) => event.stopPropagation()}
-            className="group shrink-0 overflow-hidden rounded-2xl border border-black/10 bg-white"
+            aria-pressed={photo.src === selectedSrc}
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelect(photo.src);
+            }}
+            className={`group shrink-0 overflow-hidden rounded-2xl border-2 bg-white ${
+              photo.src === selectedSrc ? "border-[#c04a10]" : "border-transparent"
+            }`}
           >
             <img
               src={photo.thumb}
@@ -328,7 +356,7 @@ function EventPhotoStrip({ photos }: { photos: LisaconPhoto[] }) {
               loading="lazy"
               className="h-24 w-36 object-cover transition-transform duration-500 group-hover:scale-105 md:h-28 md:w-44"
             />
-          </a>
+          </button>
         ))}
       </div>
     </div>
