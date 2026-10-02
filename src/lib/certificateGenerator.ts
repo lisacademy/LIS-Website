@@ -5,7 +5,7 @@ import { fetchDocumentTemplates, type DocumentTemplate } from './documentTemplat
 import { buildApiUrl } from './api';
 
 export const LIFE_CERTIFICATE_TEMPLATE_VERSION = 9;
-export const VOLUNTEER_CERTIFICATE_TEMPLATE_VERSION = 10;
+export const VOLUNTEER_CERTIFICATE_TEMPLATE_VERSION = 11;
 const LIFE_CERTIFICATE_DRAFT_TEMPLATE_URL = '/membership/No_sign-01.png';
 const LIFE_CERTIFICATE_TEMPLATE_URL = '/membership/withsign-01.png';
 const VOLUNTEER_CERTIFICATE_DRAFT_TEMPLATE_URL = '/membership/No_sign_volunteer-01.png';
@@ -432,32 +432,35 @@ async function generateConfiguredLifeCertificate(
   const scaleY = background.height / CANVA_CERTIFICATE_HEIGHT;
   const scale = Math.min(scaleX, scaleY);
 
-  ctx.fillStyle = '#ffffff';
-  const certificateOfSize = fitFont(
-    ctx,
-    'OF',
-    'Georgia, serif',
-    'bold',
-    220 * scaleX,
-    state.certificateOfFontSize * scale,
-    20 * scale,
-  );
-  ctx.font = `bold ${certificateOfSize}px Georgia, serif`;
-  ctx.fillText('OF', state.certificateOfX * scaleX, state.certificateOfY * scaleY);
+  // The volunteer template already has "OF LISA VOLUNTEER" printed on it.
+  if (certificateKind !== 'volunteer') {
+    ctx.fillStyle = '#ffffff';
+    const certificateOfSize = fitFont(
+      ctx,
+      'OF',
+      'Georgia, serif',
+      'bold',
+      220 * scaleX,
+      state.certificateOfFontSize * scale,
+      20 * scale,
+    );
+    ctx.font = `bold ${certificateOfSize}px Georgia, serif`;
+    ctx.fillText('OF', state.certificateOfX * scaleX, state.certificateOfY * scaleY);
 
-  const certificateType = getCertificateTypeText(member, certificateKind);
-  ctx.fillStyle = '#ffffff';
-  const certificateTypeSize = fitFont(
-    ctx,
-    certificateType,
-    'Georgia, serif',
-    'bold',
-    760 * scaleX,
-    state.certificateTypeFontSize * scale,
-    24 * scale,
-  );
-  ctx.font = `bold ${certificateTypeSize}px Georgia, serif`;
-  ctx.fillText(certificateType, state.certificateTypeX * scaleX, state.certificateTypeY * scaleY);
+    const certificateType = getCertificateTypeText(member, certificateKind);
+    ctx.fillStyle = '#ffffff';
+    const certificateTypeSize = fitFont(
+      ctx,
+      certificateType,
+      'Georgia, serif',
+      'bold',
+      760 * scaleX,
+      state.certificateTypeFontSize * scale,
+      24 * scale,
+    );
+    ctx.font = `bold ${certificateTypeSize}px Georgia, serif`;
+    ctx.fillText(certificateType, state.certificateTypeX * scaleX, state.certificateTypeY * scaleY);
+  }
 
   const rawName = member.name.trim().toUpperCase();
   const name = rawName.length > 42 ? `${rawName.slice(0, 41)}...` : rawName;
